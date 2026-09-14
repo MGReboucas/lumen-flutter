@@ -24,7 +24,7 @@ A primeira demonstração navegável está pronta. Ela apresenta uma tela de ent
 - Animação de entrada com transição para a Home;
 - Vitrine inicial com produto, preço e selo de exclusividade;
 - Favoritos, sacola com contador e navegação inferior;
-- Interface funcional sem depender do backend para a demonstração inicial.
+- Home conectada ao catálogo FastAPI, com loading, erro, nova tentativa e fallback demonstrativo.
 
 ## ✦ Tecnologias
 
@@ -40,6 +40,18 @@ Pré-requisitos: Flutter instalado e um emulador/dispositivo conectado.
 cd lumen-flutter
 flutter pub get
 flutter run
+```
+
+### API local
+
+Com o backend iniciado, o emulador Android usa por padrão `http://10.0.2.2:8000/api/v1`. Para outro destino, informe a URL na inicialização:
+
+```powershell
+# Chrome ou simulador iOS
+flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8000/api/v1
+
+# Celular físico: substitua pelo IP local da máquina que executa a API
+flutter run --dart-define=API_BASE_URL=http://192.168.0.10:8000/api/v1
 ```
 
 Para verificar o código:
@@ -63,7 +75,7 @@ test/
 | Etapa | Entrega | Status |
 | --- | --- | --- |
 | 1. Fundamentos visuais | Tema, identidade Lumen, tela de entrada e Home | Concluída |
-| 2. Base de integração | Ambientes, cliente HTTP, tratamento de erros, sessão segura e gerenciamento de estado | Próxima |
+| 2. Base de integração | Ambientes, cliente HTTP, carregamento, erro, nova tentativa e fallback local | Concluída |
 | 3. Descoberta e catálogo | Produtos reais, categorias, busca, filtros, paginação, banners e favoritos | Planejada |
 | 4. Produto e sacola | Detalhe, fotos, variações, disponibilidade, quantidade, preço e persistência do carrinho | Planejada |
 | 5. Conta da cliente | Cadastro, login, recuperação de senha, perfil, endereços e preferências | Planejada |
@@ -82,7 +94,7 @@ Também serão necessários os materiais da loja: ícone final, capturas de tela
 
 ## ✦ Próximo passo
 
-Conectar a Home ao endpoint `GET /api/v1/products` do projeto backend. O produto atual é intencionalmente local para que a interface possa ser apresentada mesmo com a API desligada.
+Criar a tela de detalhe do produto e permitir selecionar variações e quantidade antes de persistir a sacola. A Home já consome `GET /api/v1/products`; o Vestido Aura local só aparece quando a API está indisponível.
 
 ## ✦ Identidade
 

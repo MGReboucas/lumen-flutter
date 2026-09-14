@@ -2,9 +2,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:lumen_store/main.dart';
 
+class FakeProductsRepository implements ProductsRepository {
+  @override
+  Future<List<StoreProduct>> listProducts() async => [lumenDemoProduct];
+}
+
 void main() {
   testWidgets('shows the Lumen entry and opens the storefront', (tester) async {
-    await tester.pumpWidget(const LumenApp());
+    await tester.pumpWidget(
+      LumenApp(productsRepository: FakeProductsRepository()),
+    );
     expect(find.text('L U M E N'), findsOneWidget);
 
     await tester.tap(find.text('L U M E N'));

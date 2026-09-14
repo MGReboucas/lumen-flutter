@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 void main() => runApp(const LumenApp());
 
@@ -14,7 +16,9 @@ class LumenColors {
 }
 
 class LumenApp extends StatelessWidget {
-  const LumenApp({super.key});
+  const LumenApp({super.key, this.productsRepository});
+
+  final ProductsRepository? productsRepository;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -29,12 +33,16 @@ class LumenApp extends StatelessWidget {
         surface: LumenColors.ink,
       ),
     ),
-    home: const LumenExperience(),
+    home: LumenExperience(
+      productsRepository: productsRepository ?? ProductApi(),
+    ),
   );
 }
 
 class LumenExperience extends StatefulWidget {
-  const LumenExperience({super.key});
+  const LumenExperience({super.key, required this.productsRepository});
+
+  final ProductsRepository productsRepository;
 
   @override
   State<LumenExperience> createState() => _LumenExperienceState();
@@ -71,7 +79,10 @@ class _LumenExperienceState extends State<LumenExperience> {
             key: const ValueKey('splash'),
             onFinish: () => setState(() => _showSplash = false),
           )
-        : const LumenHome(key: ValueKey('home')),
+        : LumenHome(
+            key: const ValueKey('home'),
+            productsRepository: widget.productsRepository,
+          ),
   );
 }
 
@@ -185,7 +196,9 @@ class _Tagline extends StatelessWidget {
 }
 
 class LumenHome extends StatefulWidget {
-  const LumenHome({super.key});
+  const LumenHome({super.key, required this.productsRepository});
+
+  final ProductsRepository productsRepository;
 
   @override
   State<LumenHome> createState() => _LumenHomeState();
@@ -195,12 +208,23 @@ class _LumenHomeState extends State<LumenHome> {
   bool _favorite = false;
   int _bagCount = 0;
   int _selectedNav = 0;
+  late Future<List<StoreProduct>> _productsFuture;
 
-  void _addToBag() {
+  @override
+  void initState() {
+    super.initState();
+    _productsFuture = widget.productsRepository.listProducts();
+  }
+
+  void _reloadProducts() {
+    setState(() => _productsFuture = widget.productsRepository.listProducts());
+  }
+
+  void _addToBag(StoreProduct product) {
     setState(() => _bagCount++);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Vestido Aura adicionado à sua sacola.'),
+      SnackBar(
+        content: Text('${product.name} adicionado à sua sacola.'),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -261,16 +285,7 @@ class _LumenHomeState extends State<LumenHome> {
           const SliverToBoxAdapter(child: SizedBox(height: 28)),
           const SliverToBoxAdapter(child: _HomeHero()),
           const SliverToBoxAdapter(child: SizedBox(height: 25)),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 22),
-              child: ProductCard(
-                favorite: _favorite,
-                onFavorite: () => setState(() => _favorite = !_favorite),
-                onAdd: _addToBag,
-              ),
-            ),
-          ),
+          SliverToBoxAdapter(child: _buildProductShowcase()),
           const SliverToBoxAdapter(child: SizedBox(height: 24)),
           const SliverToBoxAdapter(child: _SectionHeading()),
           const SliverToBoxAdapter(child: SizedBox(height: 100)),
@@ -307,6 +322,35 @@ class _LumenHomeState extends State<LumenHome> {
           label: 'Perfil',
         ),
       ],
+    ),
+  );
+
+  Widget _buildProductShowcase() => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 22),
+    child: FutureBuilder<List<StoreProduct>>(
+      future: _productsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const _LoadingProductCard();
+        }
+
+        final products = snapshot.data ?? const [];
+        final isDemoMode = snapshot.hasError || products.isEmpty;
+        final product = isDemoMode ? lumenDemoProduct : products.first;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (isDemoMode) _CatalogUnavailableNotice(onRetry: _reloadProducts),
+            ProductCard(
+              product: product,
+              favorite: _favorite,
+              onFavorite: () => setState(() => _favorite = !_favorite),
+              onAdd: () => _addToBag(product),
+            ),
+          ],
+        );
+      },
     ),
   );
 }
@@ -384,11 +428,13 @@ class _SectionHeading extends StatelessWidget {
 class ProductCard extends StatelessWidget {
   const ProductCard({
     super.key,
+    required this.product,
     required this.favorite,
     required this.onFavorite,
     required this.onAdd,
   });
 
+  final StoreProduct product;
   final bool favorite;
   final VoidCallback onFavorite;
   final VoidCallback onAdd;
@@ -450,12 +496,12 @@ class ProductCard extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(18, 16, 14, 17),
             child: Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Vestido Aura',
+                        product.name,
                         style: TextStyle(
                           color: LumenColors.ink,
                           fontSize: 20,
@@ -464,7 +510,7 @@ class ProductCard extends StatelessWidget {
                       ),
                       SizedBox(height: 4),
                       Text(
-                        'Cetim champagne · edição limitada',
+                        product.shortDescription,
                         style: TextStyle(
                           color: Color(0xFF756C62),
                           fontSize: 12,
@@ -472,7 +518,7 @@ class ProductCard extends StatelessWidget {
                       ),
                       SizedBox(height: 9),
                       Text(
-                        'R\$ 289,90',
+                        product.formattedPrice,
                         style: TextStyle(
                           color: LumenColors.ink,
                           fontSize: 16,
@@ -499,6 +545,176 @@ class ProductCard extends StatelessWidget {
       ),
     ),
   );
+}
+
+class _LoadingProductCard extends StatelessWidget {
+  const _LoadingProductCard();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    height: 400,
+    decoration: BoxDecoration(
+      color: const Color(0xFF242421),
+      borderRadius: BorderRadius.circular(24),
+    ),
+    child: const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 26,
+            height: 26,
+            child: CircularProgressIndicator(
+              color: LumenColors.gold,
+              strokeWidth: 2,
+            ),
+          ),
+          SizedBox(height: 14),
+          Text(
+            'Preparando a seleção Lumen...',
+            style: TextStyle(color: LumenColors.muted, fontSize: 13),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _CatalogUnavailableNotice extends StatelessWidget {
+  const _CatalogUnavailableNotice({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0x55756449)),
+        borderRadius: BorderRadius.circular(14),
+        color: const Color(0x33242421),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.cloud_off_rounded,
+              color: LumenColors.gold,
+              size: 18,
+            ),
+            const SizedBox(width: 9),
+            const Expanded(
+              child: Text(
+                'Exibindo a seleção demonstrativa.',
+                style: TextStyle(color: LumenColors.paper, fontSize: 12),
+              ),
+            ),
+            TextButton(
+              onPressed: onRetry,
+              child: const Text(
+                'TENTAR',
+                style: TextStyle(fontSize: 10, letterSpacing: 1),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class StoreProduct {
+  const StoreProduct({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.price,
+    required this.stock,
+    this.categoryName,
+  });
+
+  final int id;
+  final String name;
+  final String? description;
+  final double price;
+  final int stock;
+  final String? categoryName;
+
+  factory StoreProduct.fromJson(Map<String, dynamic> json) => StoreProduct(
+    id: json['id'] as int,
+    name: json['name'] as String,
+    description: json['description'] as String?,
+    price: (json['price'] as num).toDouble(),
+    stock: json['stock'] as int,
+    categoryName: json['category_name'] as String?,
+  );
+
+  String get shortDescription => categoryName ?? description ?? 'Seleção Lumen';
+
+  String get formattedPrice =>
+      'R\$ ${price.toStringAsFixed(2).replaceAll('.', ',')}';
+}
+
+const lumenDemoProduct = StoreProduct(
+  id: 0,
+  name: 'Vestido Aura',
+  description: 'Cetim champagne · edição limitada',
+  price: 289.90,
+  stock: 12,
+  categoryName: 'Coleção Vista sua essência',
+);
+
+abstract class ProductsRepository {
+  Future<List<StoreProduct>> listProducts();
+}
+
+class ProductApi implements ProductsRepository {
+  ProductApi({http.Client? client, String? baseUrl})
+    : _client = client ?? http.Client(),
+      _baseUrl =
+          baseUrl ??
+          const String.fromEnvironment(
+            'API_BASE_URL',
+            defaultValue: 'http://10.0.2.2:8000/api/v1',
+          );
+
+  final http.Client _client;
+  final String _baseUrl;
+
+  @override
+  Future<List<StoreProduct>> listProducts() async {
+    final response = await _client
+        .get(
+          Uri.parse('${_baseUrl.replaceFirst(RegExp(r'/+$'), '')}/products'),
+          headers: const {'Accept': 'application/json'},
+        )
+        .timeout(const Duration(seconds: 8));
+
+    if (response.statusCode != 200) {
+      throw ProductApiException('Não foi possível carregar o catálogo.');
+    }
+
+    final payload = jsonDecode(response.body);
+    if (payload is! List) {
+      throw ProductApiException('Resposta de catálogo inválida.');
+    }
+
+    return payload
+        .whereType<Map<String, dynamic>>()
+        .map(StoreProduct.fromJson)
+        .where((product) => product.stock > 0)
+        .toList();
+  }
+}
+
+class ProductApiException implements Exception {
+  ProductApiException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }
 
 class FashionIllustration extends StatelessWidget {
