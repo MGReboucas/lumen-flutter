@@ -1,11 +1,11 @@
 {
-    "name": "lumen_store",
-    "short_name": "lumen_store",
+    "name": "Lumen",
+    "short_name": "Lumen",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#171717",
+    "theme_color": "#171717",
+    "description": "Lumen - e-commerce feminino.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
