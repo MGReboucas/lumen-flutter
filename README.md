@@ -18,13 +18,16 @@ Aplicativo Flutter da Lumen, uma loja digital feminina com uma experiência edit
 
 ## ✦ Estado atual
 
-A primeira demonstração navegável está pronta. Ela apresenta uma tela de entrada animada e uma Home com um produto fictício, o **Vestido Aura**.
+O aplicativo está integrado ao checkout de visitante do backend: catálogo, sacola persistente, endereço, frete, pedido e PIX. Veja [CHECKOUT.md](CHECKOUT.md) para execução e validação. O **Vestido Aura** de demonstração não pode ser comprado.
 
 - Identidade visual preta e dourada inspirada na marca;
 - Animação de entrada com transição para a Home;
 - Vitrine inicial com produto, preço e selo de exclusividade;
 - Favoritos, sacola com contador e navegação inferior;
 - Home conectada ao catálogo FastAPI, com loading, erro, nova tentativa e fallback demonstrativo.
+- Sacola com alteração de quantidades e remoção, preço calculado pelo servidor e validação de endereço/CPF/CNPJ;
+- PIX, retomada após falhas, consulta automática, cancelamento e histórico da sessão;
+- Armazenamento seguro do token da sessão de compra.
 
 ## ✦ Tecnologias
 
@@ -65,7 +68,8 @@ flutter test
 
 ```text
 lib/
-  main.dart       # tema, animação de entrada, Home e produto demonstrativo
+  main.dart       # tema, entrada e catálogo
+  checkout/       # cliente da API, sacola, checkout, PIX e pedidos
 test/
   widget_test.dart
 ```
@@ -77,10 +81,10 @@ test/
 | 1. Fundamentos visuais | Tema, identidade Lumen, tela de entrada e Home | Concluída |
 | 2. Base de integração | Ambientes, cliente HTTP, carregamento, erro, nova tentativa e fallback local | Concluída |
 | 3. Descoberta e catálogo | Produtos reais, categorias, busca, filtros, paginação, banners e favoritos | Planejada |
-| 4. Produto e sacola | Detalhe, fotos, variações, disponibilidade, quantidade, preço e persistência do carrinho | Planejada |
+| 4. Produto e sacola | Quantidade, remoção, preço e persistência integrados; detalhe e variações pendentes | Parcial |
 | 5. Conta da cliente | Cadastro, login, recuperação de senha, perfil, endereços e preferências | Planejada |
-| 6. Checkout | Endereço, opções de entrega, cupom, resumo, pagamento e confirmação do pedido | Planejada |
-| 7. Pós-compra | Histórico, rastreio, cancelamento dentro das regras e atendimento | Planejada |
+| 6. Checkout | Endereço, frete fixo, resumo, PIX e confirmação; cupom e transportadora pendentes | Integrado e testado em sandbox |
+| 7. Pós-compra | Histórico por sessão e cancelamento do PIX pendente; rastreio e atendimento pendentes | Parcial |
 | 8. Qualidade de experiência | Acessibilidade, responsividade, estados offline, notificações, analytics e relatório de falhas | Planejada |
 | 9. Segurança e privacidade | Armazenamento seguro de token, consentimento, telas legais e política de privacidade | Planejada |
 | 10. Publicação Android | Ícone, assinatura, App Bundle, testes internos/fechados, ficha e envio à Google Play | Planejada |
@@ -94,7 +98,7 @@ Também serão necessários os materiais da loja: ícone final, capturas de tela
 
 ## ✦ Próximo passo
 
-Criar a tela de detalhe do produto e permitir selecionar variações e quantidade antes de persistir a sacola. A Home já consome `GET /api/v1/products`; o Vestido Aura local só aparece quando a API está indisponível.
+Configurar o backend de produção e o frete, apontar `API_BASE_URL` para HTTPS e validar um PIX real controlado. A validação em aparelhos Android/iOS e a publicação continuam pendentes. Detalhe de produto, variações, conta e rastreio são incrementos separados.
 
 ## ✦ Identidade
 

@@ -2,15 +2,28 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:lumen_store/main.dart';
 
+import 'checkout_test.dart' show FakeCommerce;
+
 class FakeProductsRepository implements ProductsRepository {
   @override
-  Future<List<StoreProduct>> listProducts() async => [lumenDemoProduct];
+  Future<List<StoreProduct>> listProducts() async => [
+    const StoreProduct(
+      id: 1,
+      name: 'Vestido Aura',
+      description: 'Vestido',
+      price: 289.90,
+      stock: 12,
+    ),
+  ];
 }
 
 void main() {
   testWidgets('shows the Lumen entry and opens the storefront', (tester) async {
     await tester.pumpWidget(
-      LumenApp(productsRepository: FakeProductsRepository()),
+      LumenApp(
+        productsRepository: FakeProductsRepository(),
+        commerceRepository: FakeCommerce(),
+      ),
     );
     expect(find.text('L U M E N'), findsOneWidget);
 
@@ -20,8 +33,13 @@ void main() {
     expect(find.text('Vestido Aura'), findsOneWidget);
     expect(find.text('R\$ 289,90'), findsOneWidget);
 
+    await tester.scrollUntilVisible(
+      find.byIcon(Icons.add_shopping_cart_rounded),
+      200,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byIcon(Icons.add_shopping_cart_rounded));
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.text('Vestido Aura adicionado à sua sacola.'), findsOneWidget);
   });
 }
