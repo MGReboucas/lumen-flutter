@@ -9,7 +9,7 @@ O fluxo atual usa `lib/checkout/commerce_api.dart` e `checkout_pages.dart`:
 5. QR Code e copia-e-cola são mostrados para pagamentos reais; sandbox aparece explicitamente como demonstração não pagável.
 6. Consulta automática a cada 10 segundos enquanto a tela está ativa, consulta manual e atualização ao voltar do banco. Cancelamento pede confirmação. Estados aprovado, cancelado, recusado, reembolsado e em análise têm mensagens próprias.
 
-A sessão é guardada em `flutter_secure_storage`. O histórico é da sessão neste aparelho/navegador, sem conta de cliente. Perder o armazenamento local impede acessar a sessão antiga pelo aplicativo. Login, recuperação em outro aparelho, cupons, rastreio de transportadora e publicação nas lojas são etapas separadas.
+A sessão é guardada em `flutter_secure_storage`. Visitantes possuem histórico da sessão local; usuários cadastrados recuperam sacola/pedidos ao entrar na conta, inclusive em outro aparelho. Veja [PAGES.md](PAGES.md) para cadastro, login e navegação. Cupons, rastreio e publicação nas lojas continuam separados.
 
 ## Executar
 

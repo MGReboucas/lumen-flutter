@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
+import '../api_config.dart';
+
 typedef Json = Map<String, dynamic>;
 
 String money(int cents) =>
@@ -23,8 +25,8 @@ abstract class SessionStorage {
 }
 
 class SecureSessionStorage implements SessionStorage {
-  SecureSessionStorage(String baseUrl)
-    : _key = 'lumen.cart.${Uri.encodeComponent(baseUrl)}';
+  SecureSessionStorage(String baseUrl, {String scope = 'cart'})
+    : _key = 'lumen.$scope.${Uri.encodeComponent(baseUrl)}';
   final String _key;
   final _storage = const FlutterSecureStorage();
   @override
@@ -122,17 +124,24 @@ abstract class CommerceRepository {
 }
 
 class CommerceApi implements CommerceRepository {
-  CommerceApi({http.Client? client, String? baseUrl, SessionStorage? storage})
-    : _client = client ?? http.Client(),
-      _baseUrl = (baseUrl ?? defaultBaseUrl).replaceFirst(RegExp(r'/+$'), ''),
-      _storage = storage ?? SecureSessionStorage(baseUrl ?? defaultBaseUrl);
-  static const defaultBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:8000/api/v1',
-  );
+  CommerceApi({
+    http.Client? client,
+    String? baseUrl,
+    SessionStorage? storage,
+    SessionStorage? accountStorage,
+  }) : _client = client ?? http.Client(),
+       _baseUrl = (baseUrl ?? defaultBaseUrl).replaceFirst(RegExp(r'/+$'), ''),
+       _storage = storage ?? SecureSessionStorage(baseUrl ?? defaultBaseUrl),
+       _accountStorage =
+           accountStorage ??
+           SecureSessionStorage(baseUrl ?? defaultBaseUrl, scope: 'account');
+  static String get defaultBaseUrl => apiBaseUrl;
   final http.Client _client;
   final String _baseUrl;
   final SessionStorage _storage;
+  final SessionStorage _accountStorage;
+  String? _accountToken;
+  Future<void>? _loadingAccount;
   String? _token;
   Future<void>? _initializing;
 
@@ -145,7 +154,7 @@ class CommerceApi implements CommerceRepository {
 
   Future<void> _loadSession() async {
     final stored = await _storage.read();
-    if (stored != null) {
+    if (stored != null && stored.isNotEmpty) {
       _token = stored;
       return;
     }
@@ -161,14 +170,21 @@ class CommerceApi implements CommerceRepository {
     Json? body,
     String? key,
     bool authenticated = true,
+    String? guestToken,
   }) async {
     try {
-      if (authenticated) await _initialize();
+      if (authenticated) {
+        await loadAccount();
+        if (_accountToken == null) await _initialize();
+      }
       final request = http.Request(method, Uri.parse('$_baseUrl$path'));
       request.headers.addAll({
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        if (authenticated) 'X-Cart-Token': _token!,
+        if (authenticated && _accountToken != null)
+          'Authorization': 'Bearer $_accountToken',
+        if (authenticated && _accountToken == null) 'X-Cart-Token': _token!,
+        'X-Cart-Token': ?guestToken,
         'Idempotency-Key': ?key,
       });
       if (body != null) request.body = jsonEncode(body);
@@ -176,6 +192,7 @@ class CommerceApi implements CommerceRepository {
         await _client.send(request),
       ))().timeout(const Duration(seconds: 35));
       dynamic payload;
+      if (response.statusCode == 204) return null;
       try {
         payload = jsonDecode(response.body);
       } on FormatException {
@@ -201,6 +218,46 @@ class CommerceApi implements CommerceRepository {
       );
     }
   }
+
+  Future<void> loadAccount() => _loadingAccount ??=
+      (() async {
+        final saved = await _accountStorage.read();
+        _accountToken = saved == null || saved.isEmpty ? null : saved;
+      })().catchError((Object error) {
+        _loadingAccount = null;
+        throw error;
+      });
+
+  Future<bool> hasAccount() async {
+    await loadAccount();
+    return _accountToken != null;
+  }
+
+  Future<void> clearAccount() async {
+    await _accountStorage.write('');
+    _accountToken = null;
+    await _storage.write('');
+    _token = null;
+  }
+
+  Future<Json> signIn(String email, String password, bool register) async {
+    await _initialize();
+    final result = await _send(
+      'POST',
+      register ? '/auth/register' : '/auth/login',
+      authenticated: false,
+      guestToken: _token,
+      body: {'email': email, 'password': password},
+    ) as Json;
+    final token = result['access_token'] as String;
+    await _accountStorage.write(token);
+    _accountToken = token;
+    _loadingAccount = Future.value();
+    return result['user'] as Json;
+  }
+
+  Future<dynamic> accountRequest(String method, String path) =>
+      _send(method, path);
 
   @override
   Future<CartSnapshot> cart() async =>

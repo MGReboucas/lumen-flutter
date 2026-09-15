@@ -180,12 +180,14 @@ void main() {
       return http.Response(jsonEncode(cartJson()), 200);
     });
     final api = CommerceApi(
+      accountStorage: MemoryStorage(),
       client: client,
       storage: storage,
       baseUrl: 'https://example.com/api/v1',
     );
     await Future.wait([api.cart(), api.cart()]);
     final restarted = CommerceApi(
+      accountStorage: MemoryStorage(),
       client: client,
       storage: storage,
       baseUrl: 'https://example.com/api/v1',
@@ -202,6 +204,7 @@ void main() {
     for (final body in ['bad gateway', '{"detail":[{"msg":"invalid"}]}']) {
       final storage = MemoryStorage()..value = 'token';
       final api = CommerceApi(
+        accountStorage: MemoryStorage(),
         storage: storage,
         client: MockClient((_) async => http.Response(body, 422)),
       );

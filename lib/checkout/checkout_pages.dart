@@ -535,7 +535,9 @@ class _OrdersPageState extends State<OrdersPage> {
     _future = widget.repository.orders();
   }
 
-  void _reload() => setState(() => _future = widget.repository.orders());
+  void _reload() => setState(() {
+    _future = widget.repository.orders();
+  });
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(

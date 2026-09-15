@@ -3,10 +3,19 @@ import 'package:flutter/material.dart';
 import 'package:lumen_store/main.dart';
 
 import 'checkout_test.dart' show FakeCommerce;
+import 'checkout_test.dart' show MemoryStorage;
+
+import 'package:lumen_store/checkout/commerce_api.dart';
+import 'package:lumen_store/account/account_controller.dart';
 
 class FakeProductsRepository implements ProductsRepository {
   @override
-  Future<List<StoreProduct>> listProducts() async => [
+  Future<List<StoreProduct>> listProducts({
+    String? search,
+    int? categoryId,
+    int skip = 0,
+    int limit = 20,
+  }) async => [
     const StoreProduct(
       id: 1,
       name: 'Vestido Aura',
@@ -14,6 +23,12 @@ class FakeProductsRepository implements ProductsRepository {
       price: 289.90,
       stock: 12,
     ),
+  ];
+  @override
+  Future<StoreProduct> product(int id) async => (await listProducts()).first;
+  @override
+  Future<List<StoreCategory>> categories() async => [
+    const StoreCategory(1, 'Moda feminina'),
   ];
 }
 
@@ -23,6 +38,13 @@ void main() {
       LumenApp(
         productsRepository: FakeProductsRepository(),
         commerceRepository: FakeCommerce(),
+        accountController: AccountController(
+          CommerceApi(
+            storage: MemoryStorage(),
+            accountStorage: MemoryStorage(),
+          ),
+          favoritesStorage: MemoryStorage(),
+        ),
       ),
     );
     expect(find.text('L U M E N'), findsOneWidget);

@@ -18,13 +18,14 @@ Aplicativo Flutter da Lumen, uma loja digital feminina com uma experiência edit
 
 ## ✦ Estado atual
 
-O aplicativo está integrado ao checkout de visitante do backend: catálogo, sacola persistente, endereço, frete, pedido e PIX. Veja [CHECKOUT.md](CHECKOUT.md) para execução e validação. O **Vestido Aura** de demonstração não pode ser comprado.
+O aplicativo possui páginas funcionais de catálogo/categorias, detalhe, favoritos, perfil, cadastro e login, além de sacola, checkout e PIX. Veja [PAGES.md](PAGES.md) para testar no navegador/telefone e [CHECKOUT.md](CHECKOUT.md) para pagamento.
 
 - Identidade visual preta e dourada inspirada na marca;
 - Animação de entrada com transição para a Home;
 - Vitrine inicial com produto, preço e selo de exclusividade;
 - Favoritos, sacola com contador e navegação inferior;
-- Home conectada ao catálogo FastAPI, com loading, erro, nova tentativa e fallback demonstrativo.
+- Home conectada ao catálogo FastAPI, com carregamento, erro e nova tentativa, sem substituir falhas por produtos fictícios;
+- Busca/categorias, detalhe com quantidade, favoritos persistentes, cadastro/login e logout;
 - Sacola com alteração de quantidades e remoção, preço calculado pelo servidor e validação de endereço/CPF/CNPJ;
 - PIX, retomada após falhas, consulta automática, cancelamento e histórico da sessão;
 - Armazenamento seguro do token da sessão de compra.
@@ -80,9 +81,9 @@ test/
 | --- | --- | --- |
 | 1. Fundamentos visuais | Tema, identidade Lumen, tela de entrada e Home | Concluída |
 | 2. Base de integração | Ambientes, cliente HTTP, carregamento, erro, nova tentativa e fallback local | Concluída |
-| 3. Descoberta e catálogo | Produtos reais, categorias, busca, filtros, paginação, banners e favoritos | Planejada |
-| 4. Produto e sacola | Quantidade, remoção, preço e persistência integrados; detalhe e variações pendentes | Parcial |
-| 5. Conta da cliente | Cadastro, login, recuperação de senha, perfil, endereços e preferências | Planejada |
+| 3. Descoberta e catálogo | Produtos, categorias, busca, paginação e favoritos integrados; banners separados | Integrada |
+| 4. Produto e sacola | Detalhe, quantidade, remoção, preço e persistência; fotos reais e variações pendentes | Parcial |
+| 5. Conta da cliente | Cadastro, login, perfil e logout integrados; recuperação/verificação por e-mail pendentes | Parcial |
 | 6. Checkout | Endereço, frete fixo, resumo, PIX e confirmação; cupom e transportadora pendentes | Integrado e testado em sandbox |
 | 7. Pós-compra | Histórico por sessão e cancelamento do PIX pendente; rastreio e atendimento pendentes | Parcial |
 | 8. Qualidade de experiência | Acessibilidade, responsividade, estados offline, notificações, analytics e relatório de falhas | Planejada |
@@ -98,7 +99,7 @@ Também serão necessários os materiais da loja: ícone final, capturas de tela
 
 ## ✦ Próximo passo
 
-Configurar o backend de produção e o frete, apontar `API_BASE_URL` para HTTPS e validar um PIX real controlado. A validação em aparelhos Android/iOS e a publicação continuam pendentes. Detalhe de produto, variações, conta e rastreio são incrementos separados.
+Atualizar o backend com as migrations de conta, reiniciar o aplicativo e testar cadastro/login e navegação no telefone. Para produção, configurar HTTPS, frete e PIX real. Verificação/recuperação de senha por e-mail, variações, fotos reais e rastreio continuam separados.
 
 ## ✦ Identidade
 

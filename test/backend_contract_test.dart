@@ -16,7 +16,12 @@ void main() {
       final client = http.Client();
       addTearDown(client.close);
       final storage = MemoryStorage();
-      final api = CommerceApi(client: client, storage: storage, baseUrl: base);
+      final api = CommerceApi(
+        client: client,
+        storage: storage,
+        accountStorage: MemoryStorage(),
+        baseUrl: base,
+      );
       final cart = await api.cart();
       final products = jsonDecode(
         (await client.get(Uri.parse('$base/products'))).body,
@@ -43,6 +48,7 @@ void main() {
       final paidIntent = await api.pay(order.id);
       expect(paidIntent.sandbox, isTrue);
       final resumed = CommerceApi(
+        accountStorage: MemoryStorage(),
         client: client,
         storage: storage,
         baseUrl: base,
@@ -96,6 +102,37 @@ void main() {
       expect(confirmed.statusCode, 200);
       expect((await resumed.refresh(next.id)).paid, isTrue);
       expect((await resumed.cart()).items, isEmpty);
+      // Account owns the existing checkout history; the guest token is revoked for it.
+      final user = await resumed.signIn(
+        'conta@example.com',
+        'Minha frase segura 123!',
+        true,
+      );
+      expect(user['email'], 'conta@example.com');
+      expect((await resumed.orders()).length, 2);
+      final oldGuest = await client.get(
+        Uri.parse('$base/cart'),
+        headers: {'X-Cart-Token': storage.value!},
+      );
+      expect(oldGuest.statusCode, 401);
+      await resumed.accountRequest('PUT', '/favorites/${product['id']}');
+      expect(
+        (await resumed.accountRequest('GET', '/favorites') as List).length,
+        1,
+      );
+      await resumed.accountRequest('POST', '/auth/logout');
+      await resumed.clearAccount();
+      expect((await resumed.orders()), isEmpty);
+      await resumed.signIn(
+        'conta@example.com',
+        'Minha frase segura 123!',
+        false,
+      );
+      expect((await resumed.orders()).length, 2);
+      expect(
+        (await resumed.accountRequest('GET', '/favorites') as List).length,
+        1,
+      );
     },
     skip: base.isEmpty ? 'Executar pelo script de contrato no backend.' : false,
   );

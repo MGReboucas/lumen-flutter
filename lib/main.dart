@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -7,7 +6,11 @@ import 'package:flutter/material.dart';
 import 'checkout/commerce_api.dart';
 import 'checkout/checkout_pages.dart';
 
-import 'package:http/http.dart' as http;
+import 'store/catalog_api.dart';
+import 'store/store_pages.dart';
+import 'account/account_controller.dart';
+import 'account/account_pages.dart';
+export 'store/catalog_api.dart';
 
 void main() => runApp(const LumenApp());
 
@@ -20,10 +23,16 @@ class LumenColors {
 }
 
 class LumenApp extends StatelessWidget {
-  const LumenApp({super.key, this.productsRepository, this.commerceRepository});
+  const LumenApp({
+    super.key,
+    this.productsRepository,
+    this.commerceRepository,
+    this.accountController,
+  });
 
   final ProductsRepository? productsRepository;
   final CommerceRepository? commerceRepository;
+  final AccountController? accountController;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -41,6 +50,7 @@ class LumenApp extends StatelessWidget {
     home: LumenExperience(
       productsRepository: productsRepository ?? ProductApi(),
       commerceRepository: commerceRepository ?? CommerceApi(),
+      accountController: accountController,
     ),
   );
 }
@@ -50,10 +60,12 @@ class LumenExperience extends StatefulWidget {
     super.key,
     required this.productsRepository,
     required this.commerceRepository,
+    this.accountController,
   });
 
   final ProductsRepository productsRepository;
   final CommerceRepository commerceRepository;
+  final AccountController? accountController;
 
   @override
   State<LumenExperience> createState() => _LumenExperienceState();
@@ -103,6 +115,7 @@ class _LumenExperienceState extends State<LumenExperience> {
             key: const ValueKey('home'),
             productsRepository: widget.productsRepository,
             commerceRepository: widget.commerceRepository,
+            accountController: widget.accountController,
           ),
   );
 }
@@ -221,17 +234,20 @@ class LumenHome extends StatefulWidget {
     super.key,
     required this.productsRepository,
     required this.commerceRepository,
+    this.accountController,
   });
 
   final ProductsRepository productsRepository;
   final CommerceRepository commerceRepository;
+  final AccountController? accountController;
 
   @override
   State<LumenHome> createState() => _LumenHomeState();
 }
 
 class _LumenHomeState extends State<LumenHome> {
-  bool _favorite = false;
+  late final AccountController _account;
+  int? _lastUserId;
   CartSnapshot? _cart;
   bool _cartBusy = false;
   int _selectedNav = 0;
@@ -241,14 +257,76 @@ class _LumenHomeState extends State<LumenHome> {
   void initState() {
     super.initState();
     _productsFuture = widget.productsRepository.listProducts();
+    _account =
+        widget.accountController ??
+        AccountController(
+          widget.commerceRepository is CommerceApi
+              ? widget.commerceRepository as CommerceApi
+              : CommerceApi(),
+        );
+    _account.addListener(_accountChanged);
+    _account.initialize();
     _refreshCart();
   }
 
-  void _reloadProducts() {
-    setState(() => _productsFuture = widget.productsRepository.listProducts());
+  void _accountChanged() {
+    if (!mounted) return;
+    final userId = _account.user?['id'] as int?;
+    if (userId != _lastUserId) {
+      _lastUserId = userId;
+      _cart = null;
+      _refreshCart();
+    }
+    setState(() {});
   }
 
-  Future<void> _addToBag(StoreProduct product) async {
+  @override
+  void dispose() {
+    _account.removeListener(_accountChanged);
+    if (widget.accountController == null) _account.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggleFavorite(StoreProduct product) async {
+    try {
+      await _account.toggle(product);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(errorText(e))));
+      }
+    }
+  }
+
+  Future<void> _openProduct(StoreProduct product) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProductDetailPage(
+          productId: product.id,
+          repository: widget.productsRepository,
+          account: _account,
+          onAdd: (p, q) => _addToBag(p, count: q, propagate: true),
+          onBag: _openBag,
+        ),
+      ),
+    );
+    if (mounted) {
+      _refreshCart();
+      _reloadProducts();
+    }
+  }
+
+  void _reloadProducts() {
+    setState(() {
+      _productsFuture = widget.productsRepository.listProducts();
+    });
+  }
+
+  Future<void> _addToBag(
+    StoreProduct product, {
+    int count = 1,
+    bool propagate = false,
+  }) async {
     if (_cartBusy) return;
     if (product.id <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -264,7 +342,7 @@ class _LumenHomeState extends State<LumenHome> {
     try {
       final cart = await widget.commerceRepository.cart();
       final current = cart.items.where((line) => line.productId == product.id);
-      final quantity = current.isEmpty ? 1 : current.first.quantity + 1;
+      final quantity = current.isEmpty ? count : current.first.quantity + count;
       final updated = await widget.commerceRepository.setQuantity(
         product.id,
         quantity,
@@ -276,6 +354,7 @@ class _LumenHomeState extends State<LumenHome> {
         SnackBar(content: Text('${product.name} adicionado à sua sacola.')),
       );
     } catch (e) {
+      if (propagate) rethrow;
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(errorText(e))));
@@ -323,65 +402,89 @@ class _LumenHomeState extends State<LumenHome> {
   @override
   Widget build(BuildContext context) => Scaffold(
     body: SafeArea(
-      child: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(22, 14, 22, 0),
-              child: Row(
-                children: [
-                  const LumenWordmark(),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: _openOrders,
-                    tooltip: 'Meus pedidos',
-                    icon: const Icon(
-                      Icons.receipt_long_outlined,
-                      color: LumenColors.paper,
-                    ),
-                  ),
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      IconButton(
-                        onPressed: _openBag,
-                        icon: const Icon(
-                          Icons.shopping_bag_outlined,
-                          color: LumenColors.paper,
-                        ),
-                      ),
-                      if (_bagCount > 0)
-                        Positioned(
-                          top: 3,
-                          right: 4,
-                          child: CircleAvatar(
-                            radius: 8,
-                            backgroundColor: LumenColors.gold,
-                            child: Text(
-                              '$_bagCount',
-                              style: const TextStyle(
-                                color: LumenColors.ink,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+      child: _selectedNav == 1
+          ? CatalogPage(
+              repository: widget.productsRepository,
+              account: _account,
+              onOpen: _openProduct,
+              onAdd: _addToBag,
+            )
+          : _selectedNav == 2
+          ? FavoritesPage(
+              account: _account,
+              onOpen: _openProduct,
+              onAdd: _addToBag,
+              onExplore: () => setState(() => _selectedNav = 1),
+            )
+          : _selectedNav == 3
+          ? ProfilePage(account: _account, onOrders: _openOrders)
+          : CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 14, 22, 0),
+                    child: Row(
+                      children: [
+                        const LumenWordmark(),
+                        const Spacer(),
+                        IconButton(
+                          onPressed: _openOrders,
+                          tooltip: 'Meus pedidos',
+                          icon: const Icon(
+                            Icons.receipt_long_outlined,
+                            color: LumenColors.paper,
                           ),
                         ),
-                    ],
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            IconButton(
+                              onPressed: _openBag,
+                              icon: const Icon(
+                                Icons.shopping_bag_outlined,
+                                color: LumenColors.paper,
+                              ),
+                            ),
+                            if (_bagCount > 0)
+                              Positioned(
+                                top: 3,
+                                right: 4,
+                                child: CircleAvatar(
+                                  radius: 8,
+                                  backgroundColor: LumenColors.gold,
+                                  child: Text(
+                                    '$_bagCount',
+                                    style: const TextStyle(
+                                      color: LumenColors.ink,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ],
-              ),
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 28)),
+                const SliverToBoxAdapter(child: _HomeHero()),
+                const SliverToBoxAdapter(child: SizedBox(height: 25)),
+                SliverToBoxAdapter(child: _buildProductShowcase()),
+                const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 22),
+                    child: OutlinedButton(
+                      onPressed: () => setState(() => _selectedNav = 1),
+                      child: const Text('VER TODO O CATÁLOGO'),
+                    ),
+                  ),
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 100)),
+              ],
             ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 28)),
-          const SliverToBoxAdapter(child: _HomeHero()),
-          const SliverToBoxAdapter(child: SizedBox(height: 25)),
-          SliverToBoxAdapter(child: _buildProductShowcase()),
-          const SliverToBoxAdapter(child: SizedBox(height: 24)),
-          const SliverToBoxAdapter(child: _SectionHeading()),
-          const SliverToBoxAdapter(child: SizedBox(height: 100)),
-        ],
-      ),
     ),
     bottomNavigationBar: NavigationBar(
       height: 70,
@@ -426,21 +529,25 @@ class _LumenHomeState extends State<LumenHome> {
         }
 
         final products = snapshot.data ?? const [];
-        final isDemoMode = snapshot.hasError || products.isEmpty;
-        final shownProducts = isDemoMode ? [lumenDemoProduct] : products;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (isDemoMode) _CatalogUnavailableNotice(onRetry: _reloadProducts),
-            for (final product in shownProducts)
+            if (snapshot.hasError)
+              _CatalogUnavailableNotice(onRetry: _reloadProducts),
+            if (!snapshot.hasError && products.isEmpty)
+              const Text(
+                'Novidades em breve. Nosso catálogo está sendo preparado.',
+              ),
+            for (final product in products)
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
                 child: ProductCard(
                   product: product,
-                  favorite: _favorite,
-                  onFavorite: () => setState(() => _favorite = !_favorite),
+                  favorite: _account.isFavorite(product.id),
+                  onFavorite: () => _toggleFavorite(product),
                   onAdd: () => _addToBag(product),
+                  onOpen: () => _openProduct(product),
                 ),
               ),
           ],
@@ -489,37 +596,6 @@ class _HomeHero extends StatelessWidget {
   );
 }
 
-class _SectionHeading extends StatelessWidget {
-  const _SectionHeading();
-
-  @override
-  Widget build(BuildContext context) => const Padding(
-    padding: EdgeInsets.symmetric(horizontal: 22),
-    child: Row(
-      children: [
-        Text(
-          'Escolhidos para você',
-          style: TextStyle(
-            color: LumenColors.paper,
-            fontSize: 18,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        Spacer(),
-        Text(
-          'VER TUDO',
-          style: TextStyle(
-            color: LumenColors.gold,
-            fontSize: 10,
-            letterSpacing: 1.2,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
 class ProductCard extends StatelessWidget {
   const ProductCard({
     super.key,
@@ -527,12 +603,14 @@ class ProductCard extends StatelessWidget {
     required this.favorite,
     required this.onFavorite,
     required this.onAdd,
+    required this.onOpen,
   });
 
   final StoreProduct product;
   final bool favorite;
   final VoidCallback onFavorite;
   final VoidCallback onAdd;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) => ClipRRect(
@@ -545,7 +623,12 @@ class ProductCard extends StatelessWidget {
             height: 270,
             child: Stack(
               children: [
-                const Positioned.fill(child: FashionIllustration()),
+                Positioned.fill(
+                  child: InkWell(
+                    onTap: onOpen,
+                    child: ProductVisual(product: product),
+                  ),
+                ),
                 Positioned(
                   top: 15,
                   left: 15,
@@ -624,7 +707,7 @@ class ProductCard extends StatelessWidget {
                   ),
                 ),
                 FilledButton(
-                  onPressed: onAdd,
+                  onPressed: product.stock > 0 ? onAdd : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: LumenColors.ink,
                     foregroundColor: LumenColors.goldLight,
@@ -701,7 +784,7 @@ class _CatalogUnavailableNotice extends StatelessWidget {
             const SizedBox(width: 9),
             const Expanded(
               child: Text(
-                'Exibindo a seleção demonstrativa.',
+                'Não foi possível conectar ao catálogo.',
                 style: TextStyle(color: LumenColors.paper, fontSize: 12),
               ),
             ),
@@ -717,99 +800,6 @@ class _CatalogUnavailableNotice extends StatelessWidget {
       ),
     ),
   );
-}
-
-class StoreProduct {
-  const StoreProduct({
-    required this.id,
-    required this.name,
-    required this.description,
-    required this.price,
-    required this.stock,
-    this.categoryName,
-  });
-
-  final int id;
-  final String name;
-  final String? description;
-  final double price;
-  final int stock;
-  final String? categoryName;
-
-  factory StoreProduct.fromJson(Map<String, dynamic> json) => StoreProduct(
-    id: json['id'] as int,
-    name: json['name'] as String,
-    description: json['description'] as String?,
-    price: (json['price'] as num).toDouble(),
-    stock: json['stock'] as int,
-    categoryName: json['category_name'] as String?,
-  );
-
-  String get shortDescription => categoryName ?? description ?? 'Seleção Lumen';
-
-  String get formattedPrice =>
-      'R\$ ${price.toStringAsFixed(2).replaceAll('.', ',')}';
-}
-
-const lumenDemoProduct = StoreProduct(
-  id: 0,
-  name: 'Vestido Aura',
-  description: 'Cetim champagne · edição limitada',
-  price: 289.90,
-  stock: 12,
-  categoryName: 'Coleção Vista sua essência',
-);
-
-abstract class ProductsRepository {
-  Future<List<StoreProduct>> listProducts();
-}
-
-class ProductApi implements ProductsRepository {
-  ProductApi({http.Client? client, String? baseUrl})
-    : _client = client ?? http.Client(),
-      _baseUrl =
-          baseUrl ??
-          const String.fromEnvironment(
-            'API_BASE_URL',
-            defaultValue: 'http://10.0.2.2:8000/api/v1',
-          );
-
-  final http.Client _client;
-  final String _baseUrl;
-
-  @override
-  Future<List<StoreProduct>> listProducts() async {
-    final response = await _client
-        .get(
-          Uri.parse('${_baseUrl.replaceFirst(RegExp(r'/+$'), '')}/products'),
-          headers: const {'Accept': 'application/json'},
-        )
-        .timeout(const Duration(seconds: 8));
-
-    if (response.statusCode != 200) {
-      throw ProductApiException('Não foi possível carregar o catálogo.');
-    }
-
-    final payload = jsonDecode(response.body);
-    if (payload is! List) {
-      throw ProductApiException('Resposta de catálogo inválida.');
-    }
-
-    return payload
-        .whereType<Map<String, dynamic>>()
-        .map(StoreProduct.fromJson)
-        .where((product) => product.stock > 0)
-        .toList();
-  }
-}
-
-class ProductApiException implements Exception {
-  ProductApiException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
 }
 
 class FashionIllustration extends StatelessWidget {
