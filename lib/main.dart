@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
 void main() => runApp(const LumenApp());
@@ -16,9 +17,10 @@ class LumenColors {
 }
 
 class LumenApp extends StatelessWidget {
-  const LumenApp({super.key, this.productsRepository});
+  const LumenApp({super.key, this.productsRepository, this.paymentRepository});
 
   final ProductsRepository? productsRepository;
+  final PaymentRepository? paymentRepository;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -35,14 +37,20 @@ class LumenApp extends StatelessWidget {
     ),
     home: LumenExperience(
       productsRepository: productsRepository ?? ProductApi(),
+      paymentRepository: paymentRepository ?? PaymentApi(),
     ),
   );
 }
 
 class LumenExperience extends StatefulWidget {
-  const LumenExperience({super.key, required this.productsRepository});
+  const LumenExperience({
+    super.key,
+    required this.productsRepository,
+    required this.paymentRepository,
+  });
 
   final ProductsRepository productsRepository;
+  final PaymentRepository paymentRepository;
 
   @override
   State<LumenExperience> createState() => _LumenExperienceState();
@@ -82,6 +90,7 @@ class _LumenExperienceState extends State<LumenExperience> {
         : LumenHome(
             key: const ValueKey('home'),
             productsRepository: widget.productsRepository,
+            paymentRepository: widget.paymentRepository,
           ),
   );
 }
@@ -196,9 +205,14 @@ class _Tagline extends StatelessWidget {
 }
 
 class LumenHome extends StatefulWidget {
-  const LumenHome({super.key, required this.productsRepository});
+  const LumenHome({
+    super.key,
+    required this.productsRepository,
+    required this.paymentRepository,
+  });
 
   final ProductsRepository productsRepository;
+  final PaymentRepository paymentRepository;
 
   @override
   State<LumenHome> createState() => _LumenHomeState();
@@ -206,7 +220,7 @@ class LumenHome extends StatefulWidget {
 
 class _LumenHomeState extends State<LumenHome> {
   bool _favorite = false;
-  int _bagCount = 0;
+  final Map<int, BagItem> _bag = {};
   int _selectedNav = 0;
   late Future<List<StoreProduct>> _productsFuture;
 
@@ -221,13 +235,40 @@ class _LumenHomeState extends State<LumenHome> {
   }
 
   void _addToBag(StoreProduct product) {
-    setState(() => _bagCount++);
+    setState(() {
+      final current = _bag[product.id];
+      _bag[product.id] = BagItem(
+        product: product,
+        quantity: (current?.quantity ?? 0) + 1,
+      );
+    });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('${product.name} adicionado à sua sacola.'),
         behavior: SnackBarBehavior.floating,
       ),
     );
+  }
+
+  int get _bagCount =>
+      _bag.values.fold(0, (total, item) => total + item.quantity);
+
+  Future<void> _openBag() async {
+    if (_bag.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sua sacola ainda está vazia.')),
+      );
+      return;
+    }
+    final paid = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => BagPage(
+          items: _bag.values.toList(growable: false),
+          paymentRepository: widget.paymentRepository,
+        ),
+      ),
+    );
+    if (paid == true && mounted) setState(_bag.clear);
   }
 
   @override
@@ -253,7 +294,7 @@ class _LumenHomeState extends State<LumenHome> {
                     clipBehavior: Clip.none,
                     children: [
                       IconButton(
-                        onPressed: () {},
+                        onPressed: _openBag,
                         icon: const Icon(
                           Icons.shopping_bag_outlined,
                           color: LumenColors.paper,
@@ -715,6 +756,453 @@ class ProductApiException implements Exception {
 
   @override
   String toString() => message;
+}
+
+class BagItem {
+  const BagItem({required this.product, required this.quantity});
+
+  final StoreProduct product;
+  final int quantity;
+
+  double get total => product.price * quantity;
+}
+
+class PaymentCharge {
+  const PaymentCharge({
+    required this.providerChargeId,
+    required this.status,
+    this.copyAndPaste,
+    this.qrCodeBase64,
+    this.ticketUrl,
+  });
+
+  final String providerChargeId;
+  final String status;
+  final String? copyAndPaste;
+  final String? qrCodeBase64;
+  final String? ticketUrl;
+
+  bool get isPaid => status == 'paid';
+
+  factory PaymentCharge.fromJson(Map<String, dynamic> json) {
+    final nextAction = json['next_action'] as Map<String, dynamic>? ?? const {};
+    return PaymentCharge(
+      providerChargeId: json['provider_charge_id'] as String,
+      status: json['status'] as String,
+      copyAndPaste: nextAction['copy_and_paste'] as String?,
+      qrCodeBase64: nextAction['qr_code_base64'] as String?,
+      ticketUrl: nextAction['ticket_url'] as String?,
+    );
+  }
+}
+
+abstract class PaymentRepository {
+  Future<PaymentCharge> createPix({
+    required String orderReference,
+    required double amount,
+    required String email,
+    required String document,
+    required String idempotencyKey,
+  });
+
+  Future<PaymentCharge> getCharge(String providerChargeId);
+}
+
+class PaymentApi implements PaymentRepository {
+  PaymentApi({http.Client? client, String? baseUrl})
+    : _client = client ?? http.Client(),
+      _baseUrl =
+          baseUrl ??
+          const String.fromEnvironment(
+            'API_BASE_URL',
+            defaultValue: 'http://10.0.2.2:8000/api/v1',
+          );
+
+  final http.Client _client;
+  final String _baseUrl;
+
+  String get _paymentsUrl =>
+      '${_baseUrl.replaceFirst(RegExp(r'/+$'), '')}/payments';
+
+  @override
+  Future<PaymentCharge> createPix({
+    required String orderReference,
+    required double amount,
+    required String email,
+    required String document,
+    required String idempotencyKey,
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse('$_paymentsUrl/charges'),
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Idempotency-Key': idempotencyKey,
+          },
+          body: jsonEncode({
+            'order_reference': orderReference,
+            'amount': amount.toStringAsFixed(2),
+            'method': 'pix',
+            'payer_email': email,
+            'payer_document': document,
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
+    return _parseCharge(response);
+  }
+
+  @override
+  Future<PaymentCharge> getCharge(String providerChargeId) async {
+    final response = await _client
+        .get(
+          Uri.parse('$_paymentsUrl/charges/$providerChargeId'),
+          headers: const {'Accept': 'application/json'},
+        )
+        .timeout(const Duration(seconds: 10));
+    return _parseCharge(response);
+  }
+
+  PaymentCharge _parseCharge(http.Response response) {
+    final payload = jsonDecode(response.body);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final detail = payload is Map<String, dynamic> ? payload['detail'] : null;
+      throw PaymentApiException(detail as String? ?? 'Não foi possível criar o PIX.');
+    }
+    if (payload is! Map<String, dynamic>) {
+      throw PaymentApiException('Resposta de pagamento inválida.');
+    }
+    return PaymentCharge.fromJson(payload);
+  }
+}
+
+class PaymentApiException implements Exception {
+  PaymentApiException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+class BagPage extends StatelessWidget {
+  const BagPage({super.key, required this.items, required this.paymentRepository});
+
+  final List<BagItem> items;
+  final PaymentRepository paymentRepository;
+
+  double get _total => items.fold(0, (total, item) => total + item.total);
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      backgroundColor: LumenColors.ink,
+      foregroundColor: LumenColors.paper,
+      title: const Text('Sua sacola'),
+    ),
+    body: SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: ListView.separated(
+                itemCount: items.length,
+                separatorBuilder: (_, _) => const Divider(color: Color(0x334F4B45)),
+                itemBuilder: (_, index) {
+                  final item = items[index];
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(item.product.name),
+                    subtitle: Text('${item.quantity} item${item.quantity > 1 ? 's' : ''}'),
+                    trailing: Text(item.product.formattedPrice),
+                  );
+                },
+              ),
+            ),
+            const Divider(color: LumenColors.gold),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Total', style: TextStyle(fontSize: 18)),
+                Text(
+                  'R\$ ${_total.toStringAsFixed(2).replaceAll('.', ',')}',
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: () async {
+                final paid = await Navigator.of(context).push<bool>(
+                  MaterialPageRoute(
+                    builder: (_) => PixCheckoutPage(
+                      total: _total,
+                      paymentRepository: paymentRepository,
+                    ),
+                  ),
+                );
+                if (paid == true && context.mounted) {
+                  Navigator.of(context).pop(true);
+                }
+              },
+              icon: const Icon(Icons.pix_rounded),
+              label: const Text('PAGAR COM PIX'),
+              style: FilledButton.styleFrom(
+                backgroundColor: LumenColors.gold,
+                foregroundColor: LumenColors.ink,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class PixCheckoutPage extends StatefulWidget {
+  const PixCheckoutPage({super.key, required this.total, required this.paymentRepository});
+
+  final double total;
+  final PaymentRepository paymentRepository;
+
+  @override
+  State<PixCheckoutPage> createState() => _PixCheckoutPageState();
+}
+
+class _PixCheckoutPageState extends State<PixCheckoutPage> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _documentController = TextEditingController();
+  bool _submitting = false;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _documentController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _generatePix() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _submitting = true);
+    final orderReference = 'LUMEN-${DateTime.now().microsecondsSinceEpoch}';
+    try {
+      final charge = await widget.paymentRepository.createPix(
+        orderReference: orderReference,
+        amount: widget.total,
+        email: _emailController.text.trim(),
+        document: _documentController.text.replaceAll(RegExp(r'\D'), ''),
+        idempotencyKey: 'pix-$orderReference',
+      );
+      if (!mounted) return;
+      final paid = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => PixPaymentPage(
+            charge: charge,
+            paymentRepository: widget.paymentRepository,
+          ),
+        ),
+      );
+      if (paid == true && mounted) Navigator.of(context).pop(true);
+    } on PaymentApiException catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    } on http.ClientException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Não foi possível conectar ao pagamento.')),
+        );
+      }
+    } on TimeoutException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('A conexão demorou. Tente novamente.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      backgroundColor: LumenColors.ink,
+      foregroundColor: LumenColors.paper,
+      title: const Text('Pagamento PIX'),
+    ),
+    body: SafeArea(
+      child: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(22),
+          children: [
+            Text(
+              'R\$ ${widget.total.toStringAsFixed(2).replaceAll('.', ',')}',
+              style: const TextStyle(fontSize: 34, color: LumenColors.gold, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            const Text('Informe os dados da pessoa pagadora para gerar o PIX.'),
+            const SizedBox(height: 24),
+            TextFormField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: 'E-mail'),
+              validator: (value) => value != null && value.contains('@') ? null : 'Informe um e-mail válido.',
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _documentController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'CPF ou CNPJ'),
+              validator: (value) {
+                final document = (value ?? '').replaceAll(RegExp(r'\D'), '');
+                return document.length == 11 || document.length == 14 ? null : 'Informe CPF ou CNPJ válido.';
+              },
+            ),
+            const SizedBox(height: 28),
+            FilledButton(
+              onPressed: _submitting ? null : _generatePix,
+              style: FilledButton.styleFrom(
+                backgroundColor: LumenColors.gold,
+                foregroundColor: LumenColors.ink,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: _submitting
+                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('GERAR PIX'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class PixPaymentPage extends StatefulWidget {
+  const PixPaymentPage({super.key, required this.charge, required this.paymentRepository});
+
+  final PaymentCharge charge;
+  final PaymentRepository paymentRepository;
+
+  @override
+  State<PixPaymentPage> createState() => _PixPaymentPageState();
+}
+
+class _PixPaymentPageState extends State<PixPaymentPage> {
+  late PaymentCharge _charge;
+  bool _refreshing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _charge = widget.charge;
+  }
+
+  Future<void> _refreshStatus() async {
+    setState(() => _refreshing = true);
+    try {
+      final updated = await widget.paymentRepository.getCharge(_charge.providerChargeId);
+      if (mounted) setState(() => _charge = updated);
+    } on PaymentApiException catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    } on http.ClientException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Não foi possível conectar ao pagamento.')),
+        );
+      }
+    } on TimeoutException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Não foi possível consultar o pagamento agora.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
+
+  Uint8List? get _qrBytes {
+    final encoded = _charge.qrCodeBase64;
+    if (encoded == null || encoded.isEmpty) return null;
+    try {
+      return base64Decode(encoded.contains(',') ? encoded.split(',').last : encoded);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final paid = _charge.isPaid;
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: LumenColors.ink,
+        foregroundColor: LumenColors.paper,
+        title: const Text('Pague com PIX'),
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(22),
+          children: [
+            Icon(paid ? Icons.check_circle_rounded : Icons.pix_rounded, color: LumenColors.gold, size: 58),
+            const SizedBox(height: 14),
+            Text(
+              paid ? 'Pagamento aprovado' : 'Escaneie o QR Code',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            if (!paid && _qrBytes != null)
+              Center(
+                child: Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.all(12),
+                  child: Image.memory(_qrBytes!, width: 220, height: 220),
+                ),
+              ),
+            if (!paid) ...[
+              const SizedBox(height: 24),
+              const Text('Ou copie o código PIX:'),
+              const SizedBox(height: 8),
+              SelectableText(_charge.copyAndPaste ?? 'Código PIX indisponível.'),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _charge.copyAndPaste == null
+                    ? null
+                    : () async {
+                        await Clipboard.setData(ClipboardData(text: _charge.copyAndPaste!));
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Código PIX copiado.')),
+                          );
+                        }
+                      },
+                icon: const Icon(Icons.copy_rounded),
+                label: const Text('COPIAR CÓDIGO'),
+              ),
+              const SizedBox(height: 18),
+              FilledButton(
+                onPressed: _refreshing ? null : _refreshStatus,
+                child: _refreshing
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('JÁ FIZ O PAGAMENTO'),
+              ),
+            ] else
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: FilledButton.styleFrom(backgroundColor: LumenColors.gold, foregroundColor: LumenColors.ink),
+                child: const Text('CONCLUIR PEDIDO'),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class FashionIllustration extends StatelessWidget {
