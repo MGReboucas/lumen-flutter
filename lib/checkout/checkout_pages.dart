@@ -193,12 +193,7 @@ class _BagPageState extends State<BagPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    line.name,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 6),
-                  Text('${money(line.unitPriceCents)} por unidade'),
+                  _BagProductHeading(line: line),
                   if (!line.available ||
                       line.stock < line.quantity && cart.activeOrderId == null)
                     const Padding(
@@ -344,6 +339,62 @@ class _BagPageState extends State<BagPage> {
         ],
       ),
     ),
+  );
+}
+
+class _BagProductHeading extends StatelessWidget {
+  const _BagProductHeading({required this.line});
+  final CartLine line;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      const placeholder = Center(
+        child: Icon(
+          Icons.shopping_bag_outlined,
+          size: 36,
+          color: Color(0xFF866B48),
+        ),
+      );
+      final photo = ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox.square(
+          dimension: 88,
+          child: ColoredBox(
+            color: const Color(0xFFF1E8D8),
+            child: line.imageUrl == null || line.imageUrl!.isEmpty
+                ? placeholder
+                : Image.network(
+                    line.imageUrl!,
+                    fit: BoxFit.contain,
+                    semanticLabel: line.name,
+                    errorBuilder: (_, _, _) => placeholder,
+                  ),
+          ),
+        ),
+      );
+      final description = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(line.name, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 6),
+          Text('${money(line.unitPriceCents)} por unidade'),
+        ],
+      );
+      return constraints.maxWidth < 400 &&
+              MediaQuery.textScalerOf(context).scale(16) > 22
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [photo, const SizedBox(height: 16), description],
+            )
+          : Row(
+              children: [
+                photo,
+                const SizedBox(width: 16),
+                Expanded(child: description),
+              ],
+            );
+    },
   );
 }
 

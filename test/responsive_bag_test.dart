@@ -23,6 +23,7 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       final api = FakeCommerce();
       final data = cartJson();
+      data['items'][0]['image_url'] = 'https://images.example.com/vestido.png';
       data['items'][0]['name'] =
           'Vestido Aura de cetim champagne com alças ajustáveis';
       api.data = data;
@@ -39,7 +40,20 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       final items = tester.getRect(find.byKey(const ValueKey('bag-items')));
-      final summary = tester.getRect(find.byKey(const ValueKey('bag-summary')));
+      if (find.byKey(const ValueKey('bag-summary')).evaluate().isEmpty) {
+        await tester.scrollUntilVisible(
+          find.byKey(const ValueKey('bag-summary')),
+          180,
+        );
+        await tester.pumpAndSettle();
+      }
+      final offset = tester
+          .state<ScrollableState>(find.byType(Scrollable).first)
+          .position
+          .pixels;
+      final summary = tester
+          .getRect(find.byKey(const ValueKey('bag-summary')))
+          .shift(Offset(0, offset));
       if (width >= 900 && scale == 1) {
         expect(summary.left, greaterThan(items.right));
         expect(summary.top, closeTo(items.top, 1));
@@ -58,6 +72,10 @@ void main() {
         'Remover produto',
       ]) {
         final control = find.byTooltip(label);
+        if (control.evaluate().isEmpty) {
+          await tester.scrollUntilVisible(control, -180);
+          await tester.pumpAndSettle();
+        }
         await tester.ensureVisible(control);
         expect(tester.getSize(control).height, greaterThanOrEqualTo(48));
         expect(tester.getSize(control).width, greaterThanOrEqualTo(48));

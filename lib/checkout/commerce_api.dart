@@ -39,12 +39,14 @@ class CartLine {
   CartLine.fromJson(Json json)
     : productId = json['product_id'] as int,
       name = json['name'] as String,
+      imageUrl = json['image_url'] as String?,
       quantity = json['quantity'] as int,
       unitPriceCents = json['unit_price_cents'] as int,
       stock = json['stock'] as int,
       available = json['available'] as bool;
   final int productId, quantity, unitPriceCents, stock;
   final String name;
+  final String? imageUrl;
   final bool available;
   int get totalCents => unitPriceCents * quantity;
 }
