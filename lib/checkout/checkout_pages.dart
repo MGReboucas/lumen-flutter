@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'commerce_api.dart';
+import '../store/store_layout.dart';
 
 String errorText(Object error) => error is CommerceException
     ? error.message
@@ -250,6 +251,23 @@ class _CheckoutPageState extends State<CheckoutPage> {
   late String _key;
   Json? _attempt;
   CheckoutQuote? _quote;
+  String? _shippingServiceId;
+  bool _ratesCurrent = false;
+  ShippingOption? get _shipping {
+    if (!_ratesCurrent ||
+        _quote?.postalCode !=
+            value('postal_code').replaceAll(RegExp(r'\D'), '')) {
+      return null;
+    }
+    for (final option in _quote?.shippingOptions ?? <ShippingOption>[]) {
+      if (option.id == _shippingServiceId) return option;
+    }
+    return null;
+  }
+
+  int get _totalCents => _quote!.shippingRequired
+      ? _quote!.cart.subtotalCents + (_shipping?.priceCents ?? 0)
+      : _quote!.totalCents;
   String? _error;
   bool _busy = false;
   @override
@@ -271,14 +289,30 @@ class _CheckoutPageState extends State<CheckoutPage> {
     super.dispose();
   }
 
-  Future<void> _loadQuote() async {
+  Future<void> _loadQuote({bool calculate = false}) async {
+    final postalCode = value('postal_code').replaceAll(RegExp(r'\D'), '');
+    if (calculate && !RegExp(r'^\d{8}$').hasMatch(postalCode)) {
+      setState(
+        () => _error = 'Informe os 8 números do CEP para calcular a entrega.',
+      );
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
+      _ratesCurrent = false;
+      _shippingServiceId = null;
     });
     try {
-      final quote = await widget.repository.quote();
-      if (mounted) setState(() => _quote = quote);
+      final quote = await widget.repository.quote(
+        postalCode: calculate ? postalCode : null,
+      );
+      if (mounted) {
+        setState(() {
+          _quote = quote;
+          _ratesCurrent = calculate;
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => _error = errorText(e));
     } finally {
@@ -289,13 +323,21 @@ class _CheckoutPageState extends State<CheckoutPage> {
   String value(String key) => _fields[key]!.text.trim();
   Future<void> _submit() async {
     if (_busy || !_form.currentState!.validate() || _quote == null) return;
+    if (_quote!.shippingRequired && _shipping == null) {
+      setState(() => _error = 'Calcule o frete e selecione PAC ou SEDEX.');
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
     });
     _attempt ??= {
       'cart_version': _quote!.cart.version,
-      'expected_total_cents': _quote!.totalCents,
+      'expected_total_cents': _totalCents,
+      if (_quote!.shippingRequired) ...{
+        'shipping_quote_id': _quote!.shippingQuoteId,
+        'shipping_service_id': _shipping!.id,
+      },
       'payer_email': value('email'),
       'payer_document': value('document').replaceAll(RegExp(r'\D'), ''),
       'address': {
@@ -328,6 +370,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
       if (!mounted) return;
       if (e is CommerceException && (e.status == 409 || e.status == 422)) {
         _attempt = null;
+        _ratesCurrent = false;
+        _shippingServiceId = null;
         _newKey();
         // A request whose response was lost may already have created the order.
         try {
@@ -366,6 +410,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
     child: TextFormField(
       key: ValueKey(key),
       controller: _fields[key],
+      onChanged: key == 'postal_code'
+          ? (_) => setState(() {
+              _ratesCurrent = false;
+              _shippingServiceId = null;
+            })
+          : null,
       enabled: !_busy && _attempt == null,
       keyboardType: keyboard,
       autocorrect: false,
@@ -428,68 +478,128 @@ class _CheckoutPageState extends State<CheckoutPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Revisar compra')),
-    body: SafeArea(
-      child: Form(
-        key: _form,
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            if (_busy) const LinearProgressIndicator(),
-            if (_quote == null && _error != null)
-              RetryNotice(_error!, _loadQuote),
-            if (_quote != null) ...[
-              Text(
-                'Dados da pessoa pagadora',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 16),
-              field('email', 'E-mail', keyboard: TextInputType.emailAddress),
-              field('document', 'CPF ou CNPJ', keyboard: TextInputType.number),
-              const SizedBox(height: 8),
-              Text(
-                'Endereço de entrega',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 16),
-              field('recipient', 'Nome de quem recebe'),
-              field('postal_code', 'CEP', keyboard: TextInputType.number),
-              field('street', 'Rua'),
-              field('number', 'Número'),
-              field('complement', 'Complemento (opcional)', optional: true),
-              field('district', 'Bairro'),
-              field('city', 'Cidade'),
-              field('state', 'Estado (UF)'),
-              const Divider(),
-              for (final line in _quote!.cart.items)
+    body: StoreViewport(
+      maxWidth: 760,
+      child: SafeArea(
+        child: Form(
+          key: _form,
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              if (_busy) const LinearProgressIndicator(),
+              if (_quote == null && _error != null)
+                RetryNotice(_error!, _loadQuote),
+              if (_quote != null) ...[
                 Text(
-                  '${line.quantity} × ${line.name} — ${money(line.totalCents)}',
+                  'Dados da pessoa pagadora',
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
-              const SizedBox(height: 12),
-              Text('${_quote!.shippingLabel}: ${money(_quote!.shippingCents)}'),
-              Text(
-                'Prazo estimado: ${_quote!.shippingDays} dias úteis após aprovação.',
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Total: ${money(_quote!.totalCents)}',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text(_error!, key: const ValueKey('checkout-error')),
+                const SizedBox(height: 16),
+                field('email', 'E-mail', keyboard: TextInputType.emailAddress),
+                field(
+                  'document',
+                  'CPF ou CNPJ',
+                  keyboard: TextInputType.number,
                 ),
-              const SizedBox(height: 20),
-              FilledButton(
-                onPressed: _busy ? null : _submit,
-                child: Text(
-                  _attempt == null
-                      ? 'CONFIRMAR E GERAR PIX'
-                      : 'RETOMAR TENTATIVA',
+                const SizedBox(height: 8),
+                Text(
+                  'Endereço de entrega',
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
-              ),
+                const SizedBox(height: 16),
+                field('recipient', 'Nome de quem recebe'),
+                field('postal_code', 'CEP', keyboard: TextInputType.number),
+                field('street', 'Rua'),
+                field('number', 'Número'),
+                field('complement', 'Complemento (opcional)', optional: true),
+                field('district', 'Bairro'),
+                field('city', 'Cidade'),
+                field('state', 'Estado (UF)'),
+                const Divider(),
+                for (final line in _quote!.cart.items)
+                  Text(
+                    '${line.quantity} × ${line.name} — ${money(line.totalCents)}',
+                  ),
+                const SizedBox(height: 12),
+                if (_quote!.shippingRequired) ...[
+                  Text(
+                    'Escolha sua entrega',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _busy || _attempt != null
+                        ? null
+                        : () => _loadQuote(calculate: true),
+                    icon: const Icon(Icons.local_shipping_outlined),
+                    label: Text(
+                      _busy ? 'CALCULANDO...' : 'CALCULAR PAC E SEDEX',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (_ratesCurrent)
+                    RadioGroup<String>(
+                      groupValue: _shippingServiceId,
+                      onChanged: (id) {
+                        if (!_busy && _attempt == null) {
+                          setState(() => _shippingServiceId = id);
+                        }
+                      },
+                      child: Column(
+                        children: [
+                          for (final option in _quote!.shippingOptions)
+                            Card(
+                              child: RadioListTile<String>(
+                                value: option.id,
+                                enabled: !_busy && _attempt == null,
+                                title: Text(
+                                  '${option.label} — ${money(option.priceCents)}',
+                                ),
+                                subtitle: Text(
+                                  'Até ${option.days} dias úteis após a postagem.',
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    )
+                  else
+                    const Text(
+                      'Informe seu CEP e calcule as opções disponíveis.',
+                    ),
+                ] else ...[
+                  Text(
+                    '${_quote!.shippingLabel}: ${money(_quote!.shippingCents)}',
+                  ),
+                  Text(
+                    'Prazo estimado: ${_quote!.shippingDays} dias úteis após aprovação.',
+                  ),
+                ],
+                const SizedBox(height: 12),
+                Text(
+                  '${_quote!.shippingRequired && _shipping == null ? 'Produtos (frete a calcular)' : 'Total'}: ${money(_totalCents)}',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(_error!, key: const ValueKey('checkout-error')),
+                  ),
+                const SizedBox(height: 20),
+                FilledButton(
+                  onPressed:
+                      _busy || (_quote!.shippingRequired && _shipping == null)
+                      ? null
+                      : _submit,
+                  child: Text(
+                    _attempt == null
+                        ? 'CONFIRMAR E GERAR PIX'
+                        : 'RETOMAR TENTATIVA',
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     ),

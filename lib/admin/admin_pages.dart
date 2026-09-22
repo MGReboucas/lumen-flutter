@@ -215,6 +215,10 @@ class _AdminProductPageState extends State<AdminProductPage> {
   final _price = TextEditingController(),
       _stock = TextEditingController(text: '0');
   final _image = TextEditingController();
+  final _package = {
+    for (final entry in AdminProduct.packageDefaults.entries)
+      entry.key: TextEditingController(text: '${entry.value}'),
+  };
   List<StoreCategory> _categories = [];
   int? _categoryId, _version;
   bool _active = true,
@@ -232,7 +236,14 @@ class _AdminProductPageState extends State<AdminProductPage> {
   @override
   void dispose() {
     _scroll.dispose();
-    for (final controller in [_name, _description, _price, _stock, _image]) {
+    for (final controller in [
+      _name,
+      _description,
+      _price,
+      _stock,
+      _image,
+      ..._package.values,
+    ]) {
       controller.dispose();
     }
     super.dispose();
@@ -262,6 +273,9 @@ class _AdminProductPageState extends State<AdminProductPage> {
           _categoryId = item.categoryId;
           _active = item.active;
           _version = item.version;
+          for (final entry in item.package.entries) {
+            _package[entry.key]!.text = '${entry.value}';
+          }
         }
         _loaded = true;
         _conflict = false;
@@ -320,6 +334,8 @@ class _AdminProductPageState extends State<AdminProductPage> {
         'category_id': _categoryId,
         'image_url': _image.text.trim().isEmpty ? null : _image.text.trim(),
         'is_active': _active,
+        for (final entry in _package.entries)
+          entry.key: int.parse(entry.value.text),
         if (_version != null) 'version': _version,
       }, id: widget.productId);
       if (mounted) {
@@ -554,6 +570,43 @@ class _AdminProductPageState extends State<AdminProductPage> {
                             : (v) => setState(() => _active = v),
                       ),
                       const SizedBox(height: 24),
+                      Text(
+                        'Embalagem para entrega',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Informe peso e medidas por unidade, incluindo a embalagem. Os padrões iniciais devem ser conferidos antes da postagem.',
+                      ),
+                      const SizedBox(height: 12),
+                      for (final entry in const {
+                        'weight_grams': 'Peso embalado (gramas)',
+                        'height_cm': 'Altura (cm)',
+                        'width_cm': 'Largura (cm)',
+                        'length_cm': 'Comprimento (cm)',
+                      }.entries)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: TextFormField(
+                            key: ValueKey('admin-${entry.key}'),
+                            controller: _package[entry.key],
+                            enabled: !_saving && !_loading,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(labelText: entry.value),
+                            validator: (value) {
+                              final number = int.tryParse(value ?? '');
+                              final max = entry.key == 'weight_grams'
+                                  ? 30000
+                                  : 100;
+                              return number == null ||
+                                      number < 1 ||
+                                      number > max
+                                  ? 'Informe um inteiro entre 1 e $max.'
+                                  : null;
+                            },
+                          ),
+                        ),
+                      const SizedBox(height: 12),
                       FilledButton.icon(
                         onPressed: _saving || _loading || _conflict
                             ? null

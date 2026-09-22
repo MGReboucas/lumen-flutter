@@ -12,7 +12,19 @@ class AdminProduct {
       categoryName = data['category_name'] as String?,
       imageUrl = data['image_url'] as String?,
       active = data['is_active'] as bool,
-      version = data['version'] as int;
+      version = data['version'] as int,
+      package = {
+        for (final entry in packageDefaults.entries)
+          entry.key: data[entry.key] as int? ?? entry.value,
+      };
+  // Older responses remain readable during the backend rollout.
+  static const packageDefaults = {
+    'weight_grams': 500,
+    'height_cm': 10,
+    'width_cm': 15,
+    'length_cm': 20,
+  };
+  final Map<String, int> package;
   final int id, priceCents, stock, version;
   final int? categoryId;
   final String name;

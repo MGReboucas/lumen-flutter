@@ -90,13 +90,14 @@ class FakeCommerce implements CommerceRepository {
   }
 
   @override
-  Future<CheckoutQuote> quote() async => CheckoutQuote.fromJson({
-    ...data,
-    'shipping_cents': 1500,
-    'total_cents': 9480,
-    'shipping_label': 'Entrega padrão',
-    'shipping_days': 7,
-  });
+  Future<CheckoutQuote> quote({String? postalCode}) async =>
+      CheckoutQuote.fromJson({
+        ...data,
+        'shipping_cents': 1500,
+        'total_cents': 9480,
+        'shipping_label': 'Entrega padrão',
+        'shipping_days': 7,
+      });
   @override
   Future<StoreOrder> checkout(Json request, String idempotencyKey) async {
     keys.add(idempotencyKey);
@@ -340,7 +341,9 @@ void main() {
   ) async {
     final repo = AsyncPixCommerce();
     await tester.pumpWidget(
-      MaterialApp(home: OrderPage(orderId: '12345678-order', repository: repo)),
+      MaterialApp(
+        home: OrderPage(orderId: '12345678-order', repository: repo),
+      ),
     );
     await tester.pumpAndSettle();
     expect(find.textContaining('Seu PIX está sendo preparado'), findsOneWidget);

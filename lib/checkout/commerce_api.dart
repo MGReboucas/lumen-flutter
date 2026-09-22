@@ -63,16 +63,35 @@ class CartSnapshot {
   int get count => items.fold(0, (a, x) => a + x.quantity);
 }
 
+class ShippingOption {
+  ShippingOption.fromJson(Json data)
+    : id = data['id'] as String,
+      label = data['label'] as String,
+      priceCents = data['price_cents'] as int,
+      days = data['days'] as int;
+  final String id, label;
+  final int priceCents, days;
+}
+
 class CheckoutQuote {
   CheckoutQuote.fromJson(Json json)
     : cart = CartSnapshot.fromJson(json),
       shippingCents = json['shipping_cents'] as int,
       totalCents = json['total_cents'] as int,
       shippingLabel = json['shipping_label'] as String,
-      shippingDays = json['shipping_days'] as int;
+      shippingDays = json['shipping_days'] as int,
+      shippingRequired = json['shipping_required'] == true,
+      shippingQuoteId = json['shipping_quote_id'] as String?,
+      postalCode = json['postal_code'] as String?,
+      shippingOptions = (json['shipping_options'] as List? ?? [])
+          .map((o) => ShippingOption.fromJson(o as Json))
+          .toList();
   final CartSnapshot cart;
   final int shippingCents, totalCents, shippingDays;
   final String shippingLabel;
+  final bool shippingRequired;
+  final String? shippingQuoteId, postalCode;
+  final List<ShippingOption> shippingOptions;
 }
 
 class StoreOrder {
@@ -114,7 +133,7 @@ class StoreOrder {
 abstract class CommerceRepository {
   Future<CartSnapshot> cart();
   Future<CartSnapshot> setQuantity(int productId, int quantity, int version);
-  Future<CheckoutQuote> quote();
+  Future<CheckoutQuote> quote({String? postalCode});
   Future<StoreOrder> checkout(Json request, String idempotencyKey);
   Future<List<StoreOrder>> orders();
   Future<StoreOrder> order(String id);
@@ -278,8 +297,14 @@ class CommerceApi implements CommerceRepository {
     ) as Json,
   );
   @override
-  Future<CheckoutQuote> quote() async =>
-      CheckoutQuote.fromJson(await _send('GET', '/cart/quote') as Json);
+  Future<CheckoutQuote> quote({
+    String? postalCode,
+  }) async => CheckoutQuote.fromJson(
+    await _send(
+      'GET',
+      '/cart/quote${postalCode == null ? '' : '?postal_code=${Uri.encodeQueryComponent(postalCode)}'}',
+    ) as Json,
+  );
   @override
   Future<StoreOrder> checkout(Json request, String idempotencyKey) async =>
       StoreOrder.fromJson(
