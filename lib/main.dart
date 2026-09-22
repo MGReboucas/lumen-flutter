@@ -417,7 +417,11 @@ class _LumenHomeState extends State<LumenHome> {
               onExplore: () => setState(() => _selectedNav = 1),
             )
           : _selectedNav == 3
-          ? ProfilePage(account: _account, onOrders: _openOrders)
+          ? ProfilePage(
+              account: _account,
+              onOrders: _openOrders,
+              onCatalogChanged: _reloadProducts,
+            )
           : CustomScrollView(
               slivers: [
                 SliverToBoxAdapter(

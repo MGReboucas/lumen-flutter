@@ -9,6 +9,21 @@ class ProductVisual extends StatelessWidget {
   final StoreProduct product;
   @override
   Widget build(BuildContext context) {
+    final image = product.imageUrl;
+    if (image != null && image.isNotEmpty) {
+      return Image.network(
+        image,
+        height: 210,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        semanticLabel: product.name,
+        errorBuilder: (_, _, _) => _placeholder(),
+      );
+    }
+    return _placeholder();
+  }
+
+  Widget _placeholder() {
     final beauty = '${product.categoryName} ${product.name}'.toLowerCase();
     final icon = beauty.contains('bolsa')
         ? Icons.shopping_bag_outlined

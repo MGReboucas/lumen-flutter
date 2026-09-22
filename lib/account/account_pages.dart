@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
 
 import '../checkout/checkout_pages.dart';
+import '../admin/admin_api.dart';
+import '../admin/admin_pages.dart';
 import 'account_controller.dart';
 
 class ProfilePage extends StatelessWidget {
-  const ProfilePage({super.key, required this.account, required this.onOrders});
+  const ProfilePage({
+    super.key,
+    required this.account,
+    required this.onOrders,
+    this.onCatalogChanged,
+  });
   final AccountController account;
   final VoidCallback onOrders;
+  final VoidCallback? onCatalogChanged;
   Future<void> _auth(BuildContext context, bool register) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -75,6 +83,24 @@ class ProfilePage extends StatelessWidget {
           ),
         ),
         if (account.user != null) ...[
+          if (account.isAdmin)
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.storefront_outlined),
+                title: const Text('Administrar loja'),
+                subtitle: const Text('Produtos, categorias e estoque'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          AdminCatalogPage(repository: AdminApi(account.api)),
+                    ),
+                  );
+                  onCatalogChanged?.call();
+                },
+              ),
+            ),
           const SizedBox(height: 12),
           const Text(
             'Sua sessão dura até 7 dias. Ao sair, seus pedidos e favoritos continuam salvos na conta.',

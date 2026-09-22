@@ -24,6 +24,9 @@ conectada à Neon. Nenhuma credencial do banco ou Mercado Pago vai no frontend.
 
 O aplicativo possui páginas funcionais de catálogo/categorias, detalhe, favoritos, perfil, cadastro e login, além de sacola, checkout e PIX. Veja [PAGES.md](PAGES.md) para testar no navegador/telefone e [CHECKOUT.md](CHECKOUT.md) para pagamento.
 
+Contas autorizadas também acessam **Perfil → Administrar loja**, com gestão de
+produtos, categorias, foto e estoque. Veja [ADMIN.md](ADMIN.md) para ativação.
+
 - Identidade visual preta e dourada inspirada na marca;
 - Animação de entrada com transição para a Home;
 - Vitrine inicial com produto, preço e selo de exclusividade;

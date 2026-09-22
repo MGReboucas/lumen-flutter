@@ -259,6 +259,9 @@ class CommerceApi implements CommerceRepository {
   Future<dynamic> accountRequest(String method, String path) =>
       _send(method, path);
 
+  Future<dynamic> adminRequest(String method, String path, {Json? body}) =>
+      _send(method, '/admin$path', body: body);
+
   @override
   Future<CartSnapshot> cart() async =>
       CartSnapshot.fromJson(await _send('GET', '/cart') as Json);

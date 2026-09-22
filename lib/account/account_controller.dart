@@ -23,6 +23,7 @@ class AccountController extends ChangeNotifier {
   }
 
   bool isFavorite(int id) => favorites.any((x) => x.id == id);
+  bool get isAdmin => user?['is_admin'] == true;
 
   Future<void> initialize() async {
     loading = true;
@@ -111,6 +112,7 @@ class AccountController extends ChangeNotifier {
                     'price': p.price,
                     'stock': p.stock,
                     'category_name': p.categoryName,
+                    'image_url': p.imageUrl,
                   },
                 )
                 .toList(),

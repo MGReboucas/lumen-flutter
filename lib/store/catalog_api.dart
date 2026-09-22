@@ -12,6 +12,7 @@ class StoreProduct {
     required this.price,
     required this.stock,
     this.categoryName,
+    this.imageUrl,
   });
 
   final int id;
@@ -20,6 +21,7 @@ class StoreProduct {
   final double price;
   final int stock;
   final String? categoryName;
+  final String? imageUrl;
 
   factory StoreProduct.fromJson(Map<String, dynamic> json) => StoreProduct(
     id: json['id'] as int,
@@ -28,6 +30,7 @@ class StoreProduct {
     price: (json['price'] as num).toDouble(),
     stock: json['stock'] as int,
     categoryName: json['category_name'] as String?,
+    imageUrl: json['image_url'] as String?,
   );
 
   String get shortDescription => categoryName ?? description ?? 'Seleção Lumen';
