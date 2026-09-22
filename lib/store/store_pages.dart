@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../account/account_controller.dart';
 import '../checkout/checkout_pages.dart';
 import 'catalog_api.dart';
+import 'store_layout.dart';
 
 class ProductVisual extends StatelessWidget {
   const ProductVisual({super.key, required this.product});
@@ -11,19 +12,21 @@ class ProductVisual extends StatelessWidget {
   Widget build(BuildContext context) {
     final image = product.imageUrl;
     if (image != null && image.isNotEmpty) {
-      return ColoredBox(
-        color: const Color(0xFFF1E8D8),
-        child: Image.network(
-          image,
-          height: 210,
-          width: double.infinity,
-          fit: BoxFit.contain,
-          semanticLabel: product.name,
-          errorBuilder: (_, _, _) => _placeholder(),
+      return AspectRatio(
+        aspectRatio: 1,
+        child: ColoredBox(
+          color: const Color(0xFFF1E8D8),
+          child: Image.network(
+            image,
+            width: double.infinity,
+            fit: BoxFit.contain,
+            semanticLabel: product.name,
+            errorBuilder: (_, _, _) => _placeholder(),
+          ),
         ),
       );
     }
-    return _placeholder();
+    return AspectRatio(aspectRatio: 1, child: _placeholder());
   }
 
   Widget _placeholder() {
@@ -36,7 +39,6 @@ class ProductVisual extends StatelessWidget {
         ? Icons.spa_outlined
         : Icons.checkroom;
     return Container(
-      height: 210,
       width: double.infinity,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -78,7 +80,7 @@ class CatalogTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Card(
     clipBehavior: Clip.antiAlias,
-    margin: const EdgeInsets.only(bottom: 18),
+    margin: EdgeInsets.zero,
     color: const Color(0xFFEEE4D6),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -124,24 +126,52 @@ class CatalogTile extends StatelessWidget {
             ),
           ],
         ),
-        ListTile(
+        InkWell(
           onTap: onOpen,
-          title: Text(
-            product.name,
-            style: const TextStyle(
-              color: Color(0xFF171717),
-              fontWeight: FontWeight.w600,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        product.name,
+                        style: const TextStyle(
+                          color: Color(0xFF171717),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        product.stock > 0
+                            ? product.shortDescription
+                            : 'Esgotado',
+                        style: const TextStyle(color: Color(0xFF756C62)),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        product.formattedPrice,
+                        style: const TextStyle(
+                          color: Color(0xFF171717),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Adicionar à sacola',
+                  onPressed: product.stock > 0 ? onAdd : null,
+                  icon: const Icon(
+                    Icons.add_shopping_cart,
+                    color: Color(0xFF171717),
+                  ),
+                ),
+              ],
             ),
-          ),
-          subtitle: Text(
-            '${product.formattedPrice}\n${product.stock > 0 ? product.shortDescription : 'Esgotado'}',
-            style: const TextStyle(color: Color(0xFF756C62)),
-          ),
-          isThreeLine: true,
-          trailing: IconButton(
-            tooltip: 'Adicionar à sacola',
-            onPressed: product.stock > 0 ? onAdd : null,
-            icon: const Icon(Icons.add_shopping_cart, color: Color(0xFF171717)),
           ),
         ),
       ],
@@ -280,13 +310,19 @@ class _CatalogPageState extends State<CatalogPage> {
             ),
           ),
         const SizedBox(height: 12),
-        for (final product in _products)
-          CatalogTile(
-            product: product,
-            account: widget.account,
-            onOpen: () => widget.onOpen(product),
-            onAdd: () => widget.onAdd(product),
-          ),
+        ProductCollection(
+          children: [
+            for (final product in _products)
+              CatalogTile(
+                key: ValueKey('catalog-product-${product.id}'),
+                product: product,
+                account: widget.account,
+                onOpen: () => widget.onOpen(product),
+                onAdd: () => widget.onAdd(product),
+              ),
+          ],
+        ),
+        const SizedBox(height: 20),
         if (_more && _error == null)
           OutlinedButton(
             onPressed: _busy ? null : () => _load(append: true),
@@ -339,13 +375,18 @@ class FavoritesPage extends StatelessWidget {
           child: const Text('EXPLORAR CATÁLOGO'),
         ),
       ],
-      for (final product in account.favorites)
-        CatalogTile(
-          product: product,
-          account: account,
-          onOpen: () => onOpen(product),
-          onAdd: () => onAdd(product),
-        ),
+      ProductCollection(
+        children: [
+          for (final product in account.favorites)
+            CatalogTile(
+              key: ValueKey('favorite-product-${product.id}'),
+              product: product,
+              account: account,
+              onOpen: () => onOpen(product),
+              onAdd: () => onAdd(product),
+            ),
+        ],
+      ),
     ],
   );
 }
@@ -391,131 +432,151 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
         ),
       ],
     ),
-    body: AnimatedBuilder(
-      animation: widget.account,
-      builder: (context, _) => FutureBuilder<StoreProduct>(
-        future: _future,
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return RetryNotice(
-              errorText(snapshot.error!),
-              () => setState(() {
-                _future = widget.repository.product(widget.productId);
-              }),
+    body: StoreViewport(
+      maxWidth: 1100,
+      child: AnimatedBuilder(
+        animation: widget.account,
+        builder: (context, _) => FutureBuilder<StoreProduct>(
+          future: _future,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return RetryNotice(
+                errorText(snapshot.error!),
+                () => setState(() {
+                  _future = widget.repository.product(widget.productId);
+                }),
+              );
+            }
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final product = snapshot.data!;
+            return ListView(
+              padding: const EdgeInsets.all(22),
+              children: [
+                ProductDetailLayout(
+                  image: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: ProductVisual(product: product),
+                  ),
+                  details: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        product.categoryName ?? 'Seleção Lumen',
+                        style: const TextStyle(color: Color(0xFFD9B66A)),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        product.name,
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        product.formattedPrice,
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        product.description ?? 'Uma escolha da seleção Lumen.',
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        product.stock > 0
+                            ? '${product.stock} disponíveis'
+                            : 'Produto esgotado',
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Expanded(child: Text('Quantidade')),
+                          IconButton(
+                            tooltip: 'Diminuir',
+                            onPressed: _busy || _quantity <= 1
+                                ? null
+                                : () => setState(() => _quantity--),
+                            icon: const Icon(Icons.remove),
+                          ),
+                          Text('$_quantity'),
+                          IconButton(
+                            tooltip: 'Aumentar',
+                            onPressed:
+                                _busy ||
+                                    _quantity >= product.stock ||
+                                    _quantity >= 99
+                                ? null
+                                : () => setState(() => _quantity++),
+                            icon: const Icon(Icons.add),
+                          ),
+                        ],
+                      ),
+                      if (_error != null)
+                        Text(
+                          _error!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        icon: const Icon(Icons.shopping_bag_outlined),
+                        label: Text(
+                          _busy ? 'ADICIONANDO...' : 'ADICIONAR À SACOLA',
+                        ),
+                        onPressed: _busy || product.stock == 0
+                            ? null
+                            : () async {
+                                setState(() {
+                                  _busy = true;
+                                  _error = null;
+                                });
+                                try {
+                                  await widget.onAdd(product, _quantity);
+                                } catch (e) {
+                                  if (mounted) {
+                                    setState(() => _error = errorText(e));
+                                  }
+                                } finally {
+                                  if (mounted) setState(() => _busy = false);
+                                }
+                              },
+                      ),
+                      OutlinedButton.icon(
+                        onPressed:
+                            widget.account.loading ||
+                                widget.account.updating.contains(product.id)
+                            ? null
+                            : () async {
+                                try {
+                                  await widget.account.toggle(product);
+                                } catch (e) {
+                                  if (mounted) {
+                                    setState(() => _error = errorText(e));
+                                  }
+                                }
+                              },
+                        icon: Icon(
+                          widget.account.isFavorite(product.id)
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                        ),
+                        label: Text(
+                          widget.account.isFavorite(product.id)
+                              ? 'REMOVER DOS FAVORITOS'
+                              : 'SALVAR NOS FAVORITOS',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Frete e prazo são apresentados na revisão da compra. Pagamento por PIX.',
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             );
-          }
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final product = snapshot.data!;
-          return ListView(
-            padding: const EdgeInsets.all(22),
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: ProductVisual(product: product),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                product.categoryName ?? 'Seleção Lumen',
-                style: const TextStyle(color: Color(0xFFD9B66A)),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                product.name,
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                product.formattedPrice,
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(height: 20),
-              Text(product.description ?? 'Uma escolha da seleção Lumen.'),
-              const SizedBox(height: 18),
-              Text(
-                product.stock > 0
-                    ? '${product.stock} disponíveis'
-                    : 'Produto esgotado',
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Text('Quantidade'),
-                  const Spacer(),
-                  IconButton(
-                    tooltip: 'Diminuir',
-                    onPressed: _busy || _quantity <= 1
-                        ? null
-                        : () => setState(() => _quantity--),
-                    icon: const Icon(Icons.remove),
-                  ),
-                  Text('$_quantity'),
-                  IconButton(
-                    tooltip: 'Aumentar',
-                    onPressed:
-                        _busy || _quantity >= product.stock || _quantity >= 99
-                        ? null
-                        : () => setState(() => _quantity++),
-                    icon: const Icon(Icons.add),
-                  ),
-                ],
-              ),
-              if (_error != null)
-                Text(
-                  _error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                icon: const Icon(Icons.shopping_bag_outlined),
-                label: Text(_busy ? 'ADICIONANDO...' : 'ADICIONAR À SACOLA'),
-                onPressed: _busy || product.stock == 0
-                    ? null
-                    : () async {
-                        setState(() {
-                          _busy = true;
-                          _error = null;
-                        });
-                        try {
-                          await widget.onAdd(product, _quantity);
-                        } catch (e) {
-                          if (mounted) setState(() => _error = errorText(e));
-                        } finally {
-                          if (mounted) setState(() => _busy = false);
-                        }
-                      },
-              ),
-              OutlinedButton.icon(
-                onPressed:
-                    widget.account.loading ||
-                        widget.account.updating.contains(product.id)
-                    ? null
-                    : () async {
-                        try {
-                          await widget.account.toggle(product);
-                        } catch (e) {
-                          if (mounted) setState(() => _error = errorText(e));
-                        }
-                      },
-                icon: Icon(
-                  widget.account.isFavorite(product.id)
-                      ? Icons.favorite
-                      : Icons.favorite_border,
-                ),
-                label: Text(
-                  widget.account.isFavorite(product.id)
-                      ? 'REMOVER DOS FAVORITOS'
-                      : 'SALVAR NOS FAVORITOS',
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Frete e prazo são apresentados na revisão da compra. Pagamento por PIX.',
-              ),
-            ],
-          );
-        },
+          },
+        ),
       ),
     ),
   );

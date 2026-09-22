@@ -8,6 +8,7 @@ import 'checkout/checkout_pages.dart';
 
 import 'store/catalog_api.dart';
 import 'store/store_pages.dart';
+import 'store/store_layout.dart';
 import 'account/account_controller.dart';
 import 'account/account_pages.dart';
 export 'store/catalog_api.dart';
@@ -402,124 +403,140 @@ class _LumenHomeState extends State<LumenHome> {
   @override
   Widget build(BuildContext context) => Scaffold(
     body: SafeArea(
-      child: _selectedNav == 1
-          ? CatalogPage(
-              repository: widget.productsRepository,
-              account: _account,
-              onOpen: _openProduct,
-              onAdd: _addToBag,
-            )
-          : _selectedNav == 2
-          ? FavoritesPage(
-              account: _account,
-              onOpen: _openProduct,
-              onAdd: _addToBag,
-              onExplore: () => setState(() => _selectedNav = 1),
-            )
-          : _selectedNav == 3
-          ? ProfilePage(
-              account: _account,
-              onOrders: _openOrders,
-              onCatalogChanged: _reloadProducts,
-            )
-          : CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(22, 14, 22, 0),
-                    child: Row(
-                      children: [
-                        const LumenWordmark(),
-                        const Spacer(),
-                        IconButton(
-                          onPressed: _openOrders,
-                          tooltip: 'Meus pedidos',
-                          icon: const Icon(
-                            Icons.receipt_long_outlined,
-                            color: LumenColors.paper,
-                          ),
-                        ),
-                        Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            IconButton(
-                              onPressed: _openBag,
-                              icon: const Icon(
-                                Icons.shopping_bag_outlined,
-                                color: LumenColors.paper,
-                              ),
+      child: StoreViewport(
+        maxWidth: _selectedNav == 3 ? 640 : 1280,
+        child: _selectedNav == 1
+            ? CatalogPage(
+                repository: widget.productsRepository,
+                account: _account,
+                onOpen: _openProduct,
+                onAdd: _addToBag,
+              )
+            : _selectedNav == 2
+            ? FavoritesPage(
+                account: _account,
+                onOpen: _openProduct,
+                onAdd: _addToBag,
+                onExplore: () => setState(() => _selectedNav = 1),
+              )
+            : _selectedNav == 3
+            ? ProfilePage(
+                account: _account,
+                onOrders: _openOrders,
+                onCatalogChanged: _reloadProducts,
+              )
+            : CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 14, 22, 0),
+                      child: Row(
+                        children: [
+                          const LumenWordmark(),
+                          const Spacer(),
+                          IconButton(
+                            onPressed: _openOrders,
+                            tooltip: 'Meus pedidos',
+                            icon: const Icon(
+                              Icons.receipt_long_outlined,
+                              color: LumenColors.paper,
                             ),
-                            if (_bagCount > 0)
-                              Positioned(
-                                top: 3,
-                                right: 4,
-                                child: CircleAvatar(
-                                  radius: 8,
-                                  backgroundColor: LumenColors.gold,
-                                  child: Text(
-                                    '$_bagCount',
-                                    style: const TextStyle(
-                                      color: LumenColors.ink,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
+                          ),
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              IconButton(
+                                onPressed: _openBag,
+                                icon: const Icon(
+                                  Icons.shopping_bag_outlined,
+                                  color: LumenColors.paper,
+                                ),
+                              ),
+                              if (_bagCount > 0)
+                                Positioned(
+                                  top: 3,
+                                  right: 4,
+                                  child: CircleAvatar(
+                                    radius: 8,
+                                    backgroundColor: LumenColors.gold,
+                                    child: Text(
+                                      '$_bagCount',
+                                      style: const TextStyle(
+                                        color: LumenColors.ink,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                          ],
-                        ),
-                      ],
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                const SliverToBoxAdapter(child: SizedBox(height: 28)),
-                const SliverToBoxAdapter(child: _HomeHero()),
-                const SliverToBoxAdapter(child: SizedBox(height: 25)),
-                SliverToBoxAdapter(child: _buildProductShowcase()),
-                const SliverToBoxAdapter(child: SizedBox(height: 24)),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 22),
-                    child: OutlinedButton(
-                      onPressed: () => setState(() => _selectedNav = 1),
-                      child: const Text('VER TODO O CATÁLOGO'),
+                  const SliverToBoxAdapter(child: SizedBox(height: 28)),
+                  const SliverToBoxAdapter(child: _HomeHero()),
+                  const SliverToBoxAdapter(child: SizedBox(height: 25)),
+                  SliverToBoxAdapter(child: _buildProductShowcase()),
+                  const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 22),
+                      child: OutlinedButton(
+                        onPressed: () => setState(() => _selectedNav = 1),
+                        child: const Text('VER TODO O CATÁLOGO'),
+                      ),
                     ),
                   ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                ],
+              ),
+      ),
+    ),
+    bottomNavigationBar: ColoredBox(
+      color: const Color(0xFF20201E),
+      child: SafeArea(
+        top: false,
+        child: Center(
+          heightFactor: 1,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: NavigationBar(
+              height: 70,
+              backgroundColor: const Color(0xFF20201E),
+              indicatorColor: const Color(0x22D9B66A),
+              selectedIndex: _selectedNav,
+              onDestinationSelected: (value) =>
+                  setState(() => _selectedNav = value),
+              labelTextStyle: WidgetStateProperty.all(
+                const TextStyle(fontSize: 10, color: LumenColors.paper),
+              ),
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.home_outlined),
+                  selectedIcon: Icon(Icons.home_rounded),
+                  label: 'Início',
                 ),
-                const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                NavigationDestination(
+                  icon: Icon(Icons.grid_view_rounded),
+                  label: 'Categorias',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.favorite_border_rounded),
+                  selectedIcon: Icon(Icons.favorite_rounded),
+                  label: 'Favoritos',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.person_outline_rounded),
+                  selectedIcon: Icon(Icons.person_rounded),
+                  label: 'Perfil',
+                ),
               ],
             ),
-    ),
-    bottomNavigationBar: NavigationBar(
-      height: 70,
-      backgroundColor: const Color(0xFF20201E),
-      indicatorColor: const Color(0x22D9B66A),
-      selectedIndex: _selectedNav,
-      onDestinationSelected: (value) => setState(() => _selectedNav = value),
-      labelTextStyle: WidgetStateProperty.all(
-        const TextStyle(fontSize: 10, color: LumenColors.paper),
+          ),
+        ),
       ),
-      destinations: const [
-        NavigationDestination(
-          icon: Icon(Icons.home_outlined),
-          selectedIcon: Icon(Icons.home_rounded),
-          label: 'Início',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.grid_view_rounded),
-          label: 'Categorias',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.favorite_border_rounded),
-          selectedIcon: Icon(Icons.favorite_rounded),
-          label: 'Favoritos',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.person_outline_rounded),
-          selectedIcon: Icon(Icons.person_rounded),
-          label: 'Perfil',
-        ),
-      ],
     ),
   );
 
@@ -543,17 +560,19 @@ class _LumenHomeState extends State<LumenHome> {
               const Text(
                 'Novidades em breve. Nosso catálogo está sendo preparado.',
               ),
-            for (final product in products)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: ProductCard(
-                  product: product,
-                  favorite: _account.isFavorite(product.id),
-                  onFavorite: () => _toggleFavorite(product),
-                  onAdd: () => _addToBag(product),
-                  onOpen: () => _openProduct(product),
-                ),
-              ),
+            ProductCollection(
+              children: [
+                for (final product in products)
+                  ProductCard(
+                    key: ValueKey('home-product-${product.id}'),
+                    product: product,
+                    favorite: _account.isFavorite(product.id),
+                    onFavorite: () => _toggleFavorite(product),
+                    onAdd: () => _addToBag(product),
+                    onOpen: () => _openProduct(product),
+                  ),
+              ],
+            ),
           ],
         );
       },
@@ -623,8 +642,8 @@ class ProductCard extends StatelessWidget {
       decoration: const BoxDecoration(color: Color(0xFFEEE4D6)),
       child: Column(
         children: [
-          SizedBox(
-            height: 270,
+          AspectRatio(
+            aspectRatio: 1,
             child: Stack(
               children: [
                 Positioned.fill(
