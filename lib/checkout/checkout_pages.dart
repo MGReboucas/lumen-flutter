@@ -103,71 +103,145 @@ class _BagPageState extends State<BagPage> {
         ],
       ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            if (_busy) const LinearProgressIndicator(),
-            if (_error != null) RetryNotice(_error!, _load),
-            if (cart != null) ...[
-              if (cart.activeOrderId != null)
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        const Text('Você tem uma compra aguardando pagamento.'),
-                        FilledButton(
-                          onPressed: _busy
-                              ? null
-                              : () => _open(
-                                  OrderPage(
-                                    orderId: cart.activeOrderId!,
-                                    repository: widget.repository,
-                                  ),
+        child: StoreViewport(
+          maxWidth: 1100,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final wide =
+                  constraints.maxWidth >= 900 &&
+                  MediaQuery.textScalerOf(context).scale(16) <= 22;
+              return ListView(
+                padding: EdgeInsets.symmetric(
+                  horizontal: constraints.maxWidth < 400 ? 16 : 24,
+                  vertical: 24,
+                ),
+                children: [
+                  if (_busy) const LinearProgressIndicator(),
+                  if (_error != null) RetryNotice(_error!, _load),
+                  if (cart != null) ...[
+                    if (cart.activeOrderId != null)
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            children: [
+                              const Text(
+                                'Você tem uma compra aguardando pagamento.',
+                              ),
+                              const SizedBox(height: 16),
+                              FilledButton(
+                                style: FilledButton.styleFrom(
+                                  minimumSize: const Size(0, 48),
                                 ),
-                          child: const Text('RETOMAR PEDIDO'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              if (cart.items.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(30),
-                  child: Text(
-                    'Sua sacola está vazia.',
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              for (final line in cart.items)
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          line.name,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        Text('${money(line.unitPriceCents)} por unidade'),
-                        if (!line.available ||
-                            line.stock < line.quantity &&
-                                cart.activeOrderId == null)
-                          const Text(
-                            'Quantidade indisponível. Ajuste sua sacola.',
+                                onPressed: _busy
+                                    ? null
+                                    : () => _open(
+                                        OrderPage(
+                                          orderId: cart.activeOrderId!,
+                                          repository: widget.repository,
+                                        ),
+                                      ),
+                                child: const Text('RETOMAR PEDIDO'),
+                              ),
+                            ],
                           ),
-                        Row(
+                        ),
+                      ),
+                    if (cart.items.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(30),
+                        child: Text(
+                          'Sua sacola está vazia.',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    if (wide)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: _items(cart)),
+                          const SizedBox(width: 28),
+                          SizedBox(width: 340, child: _summary(cart)),
+                        ],
+                      )
+                    else ...[
+                      _items(cart),
+                      const SizedBox(height: 24),
+                      _summary(cart),
+                    ],
+                  ],
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _items(CartSnapshot cart) => Column(
+    key: const ValueKey('bag-items'),
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      for (final line in cart.items)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Card(
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    line.name,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 6),
+                  Text('${money(line.unitPriceCents)} por unidade'),
+                  if (!line.available ||
+                      line.stock < line.quantity && cart.activeOrderId == null)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 12),
+                      child: Text(
+                        'Quantidade indisponível. Ajuste sua sacola.',
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final quantity = DecoratedBox(
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: Theme.of(context).colorScheme.outlineVariant,
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
+                              constraints: const BoxConstraints(
+                                minWidth: 48,
+                                minHeight: 48,
+                              ),
                               tooltip: 'Diminuir quantidade',
                               onPressed: _busy || cart.activeOrderId != null
                                   ? null
                                   : () => _change(line, line.quantity - 1),
                               icon: const Icon(Icons.remove),
                             ),
-                            Text('${line.quantity}'),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                              child: Text('${line.quantity}'),
+                            ),
                             IconButton(
+                              constraints: const BoxConstraints(
+                                minWidth: 48,
+                                minHeight: 48,
+                              ),
                               tooltip: 'Aumentar quantidade',
                               onPressed:
                                   _busy ||
@@ -177,51 +251,100 @@ class _BagPageState extends State<BagPage> {
                                   : () => _change(line, line.quantity + 1),
                               icon: const Icon(Icons.add),
                             ),
-                            Expanded(
-                              child: Text(
-                                money(line.totalCents),
-                                textAlign: TextAlign.end,
-                              ),
-                            ),
-                            IconButton(
-                              tooltip: 'Remover produto',
-                              onPressed: _busy || cart.activeOrderId != null
-                                  ? null
-                                  : () => _change(line, 0),
-                              icon: const Icon(Icons.delete_outline),
-                            ),
                           ],
                         ),
-                      ],
-                    ),
+                      );
+                      final total = Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              money(line.totalCents),
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            constraints: const BoxConstraints(
+                              minWidth: 48,
+                              minHeight: 48,
+                            ),
+                            tooltip: 'Remover produto',
+                            onPressed: _busy || cart.activeOrderId != null
+                                ? null
+                                : () => _change(line, 0),
+                            icon: const Icon(Icons.delete_outline),
+                          ),
+                        ],
+                      );
+                      return constraints.maxWidth >= 400 &&
+                              MediaQuery.textScalerOf(context).scale(16) <= 22
+                          ? Row(
+                              children: [
+                                quantity,
+                                const SizedBox(width: 28),
+                                Expanded(child: total),
+                              ],
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                quantity,
+                                const SizedBox(height: 12),
+                                total,
+                              ],
+                            );
+                    },
                   ),
-                ),
-              const SizedBox(height: 16),
-              Text(
-                'Subtotal: ${money(cart.subtotalCents)}',
-                style: Theme.of(context).textTheme.titleLarge,
+                ],
               ),
-              const Text('O valor da entrega aparece na revisão da compra.'),
-              const SizedBox(height: 20),
-              FilledButton(
-                onPressed:
-                    _busy ||
-                        _error != null ||
-                        cart.items.isEmpty ||
-                        cart.activeOrderId != null ||
-                        cart.items.any(
-                          (x) => !x.available || x.stock < x.quantity,
-                        )
-                    ? null
-                    : () => _open(CheckoutPage(repository: widget.repository)),
-                child: const Text('CONTINUAR COMPRA'),
-              ),
-            ],
-          ],
+            ),
+          ),
         ),
+    ],
+  );
+
+  Widget _summary(CartSnapshot cart) => Card(
+    key: const ValueKey('bag-summary'),
+    margin: EdgeInsets.zero,
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Resumo da compra',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Subtotal: ${money(cart.subtotalCents)}',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'O valor da entrega aparece na revisão da compra.',
+            style: TextStyle(height: 1.5),
+          ),
+          const SizedBox(height: 24),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 48),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            ),
+            onPressed:
+                _busy ||
+                    _error != null ||
+                    cart.items.isEmpty ||
+                    cart.activeOrderId != null ||
+                    cart.items.any((x) => !x.available || x.stock < x.quantity)
+                ? null
+                : () => _open(CheckoutPage(repository: widget.repository)),
+            child: const Text('CONTINUAR COMPRA', textAlign: TextAlign.center),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
 }
 
 class CheckoutPage extends StatefulWidget {
