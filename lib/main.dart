@@ -9,6 +9,7 @@ import 'checkout/checkout_pages.dart';
 import 'store/catalog_api.dart';
 import 'store/store_pages.dart';
 import 'store/store_layout.dart';
+import 'store/collection_banner.dart';
 import 'account/account_controller.dart';
 import 'account/account_pages.dart';
 export 'store/catalog_api.dart';
@@ -478,6 +479,12 @@ class _LumenHomeState extends State<LumenHome> {
                   const SliverToBoxAdapter(child: SizedBox(height: 28)),
                   const SliverToBoxAdapter(child: _HomeHero()),
                   const SliverToBoxAdapter(child: SizedBox(height: 25)),
+                  SliverToBoxAdapter(
+                    child: CollectionBanner(
+                      onExplore: () => setState(() => _selectedNav = 1),
+                    ),
+                  ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 28)),
                   SliverToBoxAdapter(child: _buildProductShowcase()),
                   const SliverToBoxAdapter(child: SizedBox(height: 24)),
                   SliverToBoxAdapter(

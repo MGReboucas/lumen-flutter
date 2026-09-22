@@ -52,15 +52,22 @@ void main() {
     await tester.tap(find.text('L U M E N'));
     await tester.pumpAndSettle();
 
+    await tester.scrollUntilVisible(
+      find.text('ESCOLHER MEUS FAVORITOS'),
+      200,
+    );
+    await tester.tap(find.text('ESCOLHER MEUS FAVORITOS'));
+    await tester.pumpAndSettle();
     expect(find.text('Vestido Aura'), findsOneWidget);
     expect(find.text('R\$ 289,90'), findsOneWidget);
 
     await tester.scrollUntilVisible(
-      find.byIcon(Icons.add_shopping_cart_rounded),
+      find.byTooltip('Adicionar à sacola'),
       200,
+      scrollable: find.byType(Scrollable).first,
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.add_shopping_cart_rounded));
+    await tester.tap(find.byTooltip('Adicionar à sacola'));
     await tester.pumpAndSettle();
     expect(find.text('Vestido Aura adicionado à sua sacola.'), findsOneWidget);
   });

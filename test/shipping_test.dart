@@ -31,12 +31,7 @@ class ShippingCommerce extends FakeCommerce {
       'shipping_options': postalCode == null
           ? []
           : [
-              {
-                'id': '1',
-                'label': 'Correios PAC',
-                'price_cents': 1500,
-                'days': 7,
-              },
+              {'id': '1', 'label': 'Correios PAC', 'price_cents': 0, 'days': 7},
               {
                 'id': '2',
                 'label': 'Correios SEDEX',
@@ -71,6 +66,11 @@ void main() {
         await tester.tap(find.text('CALCULAR PAC E SEDEX'));
         await tester.pumpAndSettle();
         expect(api.destinations, ['01001000']);
+        await tester.ensureVisible(find.text('Correios PAC — Grátis'));
+        await tester.tap(find.text('Correios PAC — Grátis'));
+        await tester.pumpAndSettle();
+        expect(find.text('Total: R\$ 79,80'), findsOneWidget);
+        expect(confirm().onPressed, isNotNull);
         await tester.ensureVisible(find.text('Correios SEDEX — R\$ 26,00'));
         await tester.tap(find.text('Correios SEDEX — R\$ 26,00'));
         await tester.pumpAndSettle();

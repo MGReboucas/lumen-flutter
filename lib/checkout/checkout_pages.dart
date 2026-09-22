@@ -553,7 +553,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                 value: option.id,
                                 enabled: !_busy && _attempt == null,
                                 title: Text(
-                                  '${option.label} — ${money(option.priceCents)}',
+                                  '${option.label} — ${option.priceCents == 0 ? 'Grátis' : money(option.priceCents)}',
                                 ),
                                 subtitle: Text(
                                   'Até ${option.days} dias úteis após a postagem.',
