@@ -38,7 +38,7 @@ class ProfilePage extends StatelessWidget {
           'Sua conta, seus favoritos, suas escolhas.',
           style: TextStyle(color: Color(0xFFA7A097)),
         ),
-        const SizedBox(height: 28),
+        const SizedBox(height: 32),
         if (account.loading)
           const LinearProgressIndicator()
         else if (account.error != null)
@@ -57,20 +57,36 @@ class ProfilePage extends StatelessWidget {
         if (account.user == null) ...[
           const Text(
             'Entre para acessar sua sacola, seus pedidos e favoritos em outros aparelhos.',
+            textAlign: TextAlign.center,
+            style: TextStyle(height: 1.5),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           FilledButton(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
             onPressed: account.loading ? null : () => _auth(context, false),
             child: const Text('ENTRAR'),
           ),
+          const SizedBox(height: 12),
           OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
             onPressed: account.loading ? null : () => _auth(context, true),
             child: const Text('CRIAR CONTA'),
           ),
         ],
-        const SizedBox(height: 24),
+        const SizedBox(height: 32),
         Card(
+          margin: EdgeInsets.zero,
           child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 8,
+            ),
             leading: const Icon(Icons.receipt_long_outlined),
             title: const Text('Meus pedidos'),
             subtitle: Text(
@@ -83,9 +99,15 @@ class ProfilePage extends StatelessWidget {
           ),
         ),
         if (account.user != null) ...[
-          if (account.isAdmin)
+          if (account.isAdmin) ...[
+            const SizedBox(height: 12),
             Card(
+              margin: EdgeInsets.zero,
               child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
                 leading: const Icon(Icons.storefront_outlined),
                 title: const Text('Administrar loja'),
                 subtitle: const Text('Produtos, categorias e estoque'),
@@ -101,12 +123,17 @@ class ProfilePage extends StatelessWidget {
                 },
               ),
             ),
-          const SizedBox(height: 12),
+          ],
+          const SizedBox(height: 24),
           const Text(
             'Sua sessão dura até 7 dias. Ao sair, seus pedidos e favoritos continuam salvos na conta.',
           ),
           const SizedBox(height: 24),
           OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
             icon: const Icon(Icons.logout),
             label: const Text('SAIR DA CONTA'),
             onPressed: () async {
