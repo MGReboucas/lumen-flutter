@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -23,8 +23,11 @@ try {
     throw new Error('API_BASE_URL deve ser uma URL HTTPS pública terminada em /api/v1, sem credenciais.');
   }
   const baseUrl = api.href.replace(/\/+$/, '');
-  if (!existsSync(join(sdk, 'bin', 'flutter'))) {
-    if (process.env.FLUTTER_ROOT) throw new Error('FLUTTER_ROOT não contém um SDK Flutter.');
+  if (!existsSync(join(sdk, 'bin', 'flutter')) || !existsSync(join(sdk, '.git'))) {
+    if (process.env.FLUTTER_ROOT) throw new Error('FLUTTER_ROOT deve conter um SDK Flutter com os metadados Git.');
+    // Vercel can restore the SDK cache without .git; Flutter needs that metadata.
+    // Only clear our managed SDK directory, never a user-provided FLUTTER_ROOT.
+    rmSync(sdk, { recursive: true, force: true });
     mkdirSync(dirname(sdk), { recursive: true });
     run('git', ['clone', '--depth', '1', '--branch', flutterVersion,
       'https://github.com/flutter/flutter.git', sdk]);
