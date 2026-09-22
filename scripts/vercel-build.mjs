@@ -23,9 +23,11 @@ try {
     throw new Error('API_BASE_URL deve ser uma URL HTTPS pública terminada em /api/v1, sem credenciais.');
   }
   const baseUrl = api.href.replace(/\/+$/, '');
-  if (!existsSync(join(sdk, 'bin', 'flutter')) || !existsSync(join(sdk, '.git'))) {
+  const sdkGit = spawnSync('git', ['--git-dir', join(sdk, '.git'), 'cat-file', '-e', 'HEAD^{commit}'],
+    { encoding: 'utf8' });
+  if (!existsSync(join(sdk, 'bin', 'flutter')) || sdkGit.status !== 0) {
     if (process.env.FLUTTER_ROOT) throw new Error('FLUTTER_ROOT deve conter um SDK Flutter com os metadados Git.');
-    // Vercel can restore the SDK cache without .git; Flutter needs that metadata.
+    // Vercel can restore an empty/incomplete .git directory; validate its HEAD.
     // Only clear our managed SDK directory, never a user-provided FLUTTER_ROOT.
     rmSync(sdk, { recursive: true, force: true });
     mkdirSync(dirname(sdk), { recursive: true });
