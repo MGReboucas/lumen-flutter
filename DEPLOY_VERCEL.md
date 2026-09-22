@@ -59,7 +59,10 @@ flutter test
 ```
 
 O teste de contrato completo é executado pelo backend:
-`python tests/run_flutter_contract.py`. No ambiente publicado, confira catálogo,
+`python tests/run_flutter_contract.py`, após `flutter pub get` no frontend.
+Ele valida sandbox e o adaptador Mercado Pago Orders com um simulador HTTP local,
+incluindo conta, estoque, PIX assíncrono, assinatura inválida e webhook repetido.
+Não gera cobranças reais. No ambiente publicado, confira catálogo,
 cadastro/login, sacola e PIX. Se o catálogo falhar, confira a URL da API, `/ready`,
 CORS e proteção de deploy da Vercel. Não basta publicar o frontend para que as
 funções que dependem do backend funcionem.
