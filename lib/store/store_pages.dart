@@ -11,13 +11,16 @@ class ProductVisual extends StatelessWidget {
   Widget build(BuildContext context) {
     final image = product.imageUrl;
     if (image != null && image.isNotEmpty) {
-      return Image.network(
-        image,
-        height: 210,
-        width: double.infinity,
-        fit: BoxFit.cover,
-        semanticLabel: product.name,
-        errorBuilder: (_, _, _) => _placeholder(),
+      return ColoredBox(
+        color: const Color(0xFFF1E8D8),
+        child: Image.network(
+          image,
+          height: 210,
+          width: double.infinity,
+          fit: BoxFit.contain,
+          semanticLabel: product.name,
+          errorBuilder: (_, _, _) => _placeholder(),
+        ),
       );
     }
     return _placeholder();

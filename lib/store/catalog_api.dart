@@ -43,9 +43,10 @@ const lumenDemoProduct = StoreProduct(
   id: 0,
   name: 'Vestido Aura',
   description: 'Cetim champagne · edição limitada',
-  price: 289.90,
+  price: 9.90,
   stock: 12,
   categoryName: 'Coleção Vista sua essência',
+  imageUrl: 'https://lumen-flutter-blond.vercel.app/products/vestido-aura.png',
 );
 
 class StoreCategory {
