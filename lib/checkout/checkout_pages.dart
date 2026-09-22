@@ -733,6 +733,13 @@ class _OrderPageState extends State<OrderPage> with WidgetsBindingObserver {
                     child: const Text('GERAR / RETOMAR PIX'),
                   )
                 else ...[
+                  if (order.nextAction['processing'] == true)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Text(
+                        'Seu PIX está sendo preparado. O código aparecerá aqui automaticamente.',
+                      ),
+                    ),
                   if (order.sandbox)
                     const Card(
                       child: Padding(

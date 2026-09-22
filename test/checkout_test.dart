@@ -128,6 +128,24 @@ class FakeCommerce implements CommerceRepository {
   }
 }
 
+class AsyncPixCommerce extends FakeCommerce {
+  bool ready = false;
+  @override
+  Future<StoreOrder> order(String id) async {
+    final data = orderJson(sandbox: false);
+    final payment = data['payment'] as Json;
+    payment['provider'] = 'mercadopago_orders';
+    if (!ready) payment['next_action'] = {'processing': true};
+    return StoreOrder.fromJson(data);
+  }
+
+  @override
+  Future<StoreOrder> refresh(String id) {
+    ready = true;
+    return order(id);
+  }
+}
+
 Future<void> fillCheckout(WidgetTester tester) async {
   for (final entry in {
     'email': 'cliente@example.com',
@@ -313,6 +331,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(copied, 'PIX-CODE');
     expect(find.text('Código PIX copiado.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('Orders shows preparation and fetches PIX on the next poll', (
+    tester,
+  ) async {
+    final repo = AsyncPixCommerce();
+    await tester.pumpWidget(
+      MaterialApp(home: OrderPage(orderId: '12345678-order', repository: repo)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Seu PIX está sendo preparado'), findsOneWidget);
+    expect(find.text('COPIAR PIX'), findsNothing);
+    await tester.pump(const Duration(seconds: 10));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Seu PIX está sendo preparado'), findsNothing);
+    expect(find.text('PIX-CODE'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });

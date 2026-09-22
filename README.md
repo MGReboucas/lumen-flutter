@@ -14,6 +14,10 @@
 
 Aplicativo Flutter da Lumen, uma loja digital feminina com uma experiência editorial, leve e personalizada.
 
+**Publicar na Vercel:** siga [DEPLOY_VERCEL.md](DEPLOY_VERCEL.md). O repositório já
+contém build Flutter Web automático; configure `API_BASE_URL` com a API HTTPS
+conectada à Neon. Nenhuma credencial do banco ou Mercado Pago vai no frontend.
+
 > **Vista a sua essência.**
 
 ## ✦ Estado atual
